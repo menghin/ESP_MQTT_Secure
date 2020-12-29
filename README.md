@@ -57,3 +57,32 @@ After updating mosquitto.conf, start the mosquitto server
 $ sudo systemctl start mosquitto.service 
 ```
 Remember to forward ports 8883 and 9883 to the internet!
+
+## Sidenotes
+
+# Rebase from fork
+git remote add upstream https://github.com/debsahu/ESP_MQTT_Secure.git
+git fetch upstream
+git checkout master
+git rebase upstream/master
+
+# Modification needed
+Create secrets_local.h, compile and run it.
+This modified project uses the forked iostack https://github.com/menghin/IOTstack 
+
+# Proposed hostname and mqtt channel
+
+The hostname uses the first letter of the city and the street in its name and then an increasing index.
+This makes it easier to figure out which sensor this is without adding too much infos
+This can be defined in the two defines LOCATION and HOSTNAME
+Example:
+```
+  #define LOCATION "g0_m0"
+  #define HOSTNAME LOCATION "_0"
+```
+
+The resulting mqtt channel is then LOCATION "/" HOSTNAME "/out/sensorid";
+
+# Links
+https://maker.pro/arduino/tutorial/how-to-use-platformio-in-visual-studio-code-to-program-arduino
+https://www.youtube.com/watch?v=ytQUbyab4es
