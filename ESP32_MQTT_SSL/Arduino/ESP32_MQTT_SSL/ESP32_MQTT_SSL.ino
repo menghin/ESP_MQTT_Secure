@@ -124,7 +124,7 @@ void mqtt_connect()
 {
   Serial.print("Time: ");
   Serial.print(ctime(&now));
-  Serial.print("MQTT connecting");
+  Serial.println("MQTT connecting");
   while (!client.connect(HOSTNAME, MQTT_USER, MQTT_PASS))
   {
     Serial.print(".");
@@ -146,7 +146,7 @@ void setup()
   Serial.print("Attempting to connect to SSID: ");
   Serial.println(ssid);
   WiFi.setHostname(HOSTNAME);
-  WiFi.mode(WIFI_AP_STA);
+  WiFi.mode(WIFI_MODE_STA);
   WiFi.begin(ssid, pass);
   while (WiFi.status() != WL_CONNECTED)
   {
