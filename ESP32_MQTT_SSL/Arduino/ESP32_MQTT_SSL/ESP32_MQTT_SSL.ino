@@ -9,9 +9,14 @@
 #include <SPI.h>
 #include <Adafruit_Sensor.h>
 #include "Adafruit_BME680.h"
+#include "driver/adc.h"
+#include <esp_wifi.h>
+#include <esp_bt.h>
 
 #define uS_TO_S_FACTOR 1000000  /* Conversion factor for micro seconds to seconds */
-#define TIME_TO_SLEEP  60        /* Time ESP32 will go to sleep (in seconds) */
+#define TIME_TO_SLEEP  60       /* Time ESP32 will go to sleep (in seconds) */
+
+#define SERIAL_LOG 1            /* Serial log is active or not */
 
 #ifndef SECRET
   const char ssid[] = "WiFiSSID";
@@ -81,8 +86,8 @@ float pressure;
 float gasResistance;
 
 time_t now;
-unsigned long lastMillis = 0;
 
+#if (SERIAL_LOG == 1)
 void print_wakeup_reason(){
   esp_sleep_wakeup_cause_t wakeup_reason;
   wakeup_reason = esp_sleep_get_wakeup_cause();
@@ -98,15 +103,28 @@ void print_wakeup_reason(){
   }
 }
 
+void setup_serial(){
+  Serial.begin(115200);
+}
+
+void print_serial(String msg){
+  Serial.println(msg);
+}
+#else
+#define print_wakeup_reason()
+#define print_serial(msg)
+#define setup_serial()
+#endif
+
 void getBME680Readings(){
   // Tell BME680 to begin measurement.
   unsigned long endTime = bme.beginReading();
   if (endTime == 0) {
-    Serial.println(F("Failed to begin reading :("));
+    print_serial("Failed to begin reading :(");
     return;
   }
   if (!bme.endReading()) {
-    Serial.println(F("Failed to complete reading :("));
+    print_serial("Failed to complete reading :(");
     return;
   }
   temperature = bme.temperature;
@@ -117,7 +135,6 @@ void getBME680Readings(){
 
 String processor(const String& var){
   getBME680Readings();
-  //Serial.println(var);
   if(var == "TEMPERATURE"){
     return String(temperature);
   }
@@ -131,7 +148,7 @@ String processor(const String& var){
     return String(gasResistance);
   }
   else{
-    Serial.println(F("Sensor id unknown!"));
+    print_serial("Sensor id unknown!");
     while (1);
   }
 
@@ -140,63 +157,59 @@ String processor(const String& var){
 
 void mqtt_connect()
 {
-  Serial.print("Time: ");
-  Serial.print(ctime(&now));
-  Serial.println("MQTT connecting");
+  print_serial("Time: ");
+  print_serial(ctime(&now));
+  print_serial("MQTT connecting");
   while (!client.connect(HOSTNAME, MQTT_USER, MQTT_PASS))
   {
-    Serial.print(".");
+    print_serial(".");
     delay(1000);
   }
-  Serial.println("connected!");
+  print_serial("connected!");
   client.subscribe(MQTT_SUB_TOPIC);
 }
 
 void messageReceived(String &topic, String &payload)
 {
-  Serial.println("Received [" + topic + "]: " + payload);
+  print_serial("Received [" + topic + "]: " + payload);
 }
 
 void setup()
 {
-  Serial.begin(115200);
+  setCpuFrequencyMhz(80);
 
-  Serial.print("Attempting to connect to SSID: ");
-  Serial.println(ssid);
+  setup_serial();
+
+  print_serial("First initialisation");  
+
+  print_serial("Attempting to connect to SSID: " + String(ssid));
   WiFi.setHostname(HOSTNAME);
   WiFi.mode(WIFI_MODE_STA);
   WiFi.begin(ssid, pass);
   while (WiFi.status() != WL_CONNECTED)
   {
-    Serial.print(".");
     delay(1000);
   }
-  Serial.println();
-  Serial.print("Connected to ");
-  Serial.println(ssid);
+  print_serial("Connected to " + String(ssid));
 
-  Serial.print("Setting time using SNTP ");
+  print_serial("Setting time using SNTP ");
   configTime(-5 * 3600, 0, "pool.ntp.org", "time.nist.gov");
   now = time(nullptr);
   while (now < 1510592825) {
     delay(500);
-    Serial.print(".");
     now = time(nullptr);
   }
-  Serial.println("");
   struct tm timeinfo;
   gmtime_r(&now, &timeinfo);
-  Serial.print("Current time: ");
-  Serial.print(ctime(&now));
+  print_serial("Current time: " + String(ctime(&now)));
 
-  //net.setCACert(local_root_ca);
   client.begin(MQTT_HOST, MQTT_PORT, net);
   client.onMessage(messageReceived);
   mqtt_connect();
 
   // Init BME680 sensor
   if (!bme.begin()) {
-    Serial.println(F("Could not find a valid BME680 sensor, check wiring!"));
+    print_serial(F("Could not find a valid BME680 sensor, check wiring!"));
     while (1);
   }
   // Set up oversampling and filter initialization
@@ -204,23 +217,23 @@ void setup()
   bme.setHumidityOversampling(BME680_OS_2X);
   bme.setPressureOversampling(BME680_OS_4X);
   bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
-  bme.setGasHeater(320, 150); // 320*C for 150 ms
+  bme.setGasHeater(320, 150); // 320*C for 150 ms  
+}
 
-  print_wakeup_reason(); //Print the wakeup reason for ESP32
-
-  delay(5000);
+void loop()
+{
+  print_wakeup_reason(); //Print the wakeup reason for ESP32 
 
   now = time(nullptr);
   if (WiFi.status() != WL_CONNECTED)
   {
-    Serial.print("Checking wifi");
+    print_serial("Checking wifi");
     while (WiFi.waitForConnectResult() != WL_CONNECTED)
     {
       WiFi.begin(ssid, pass);
-      Serial.print(".");
       delay(10);
     }
-    Serial.println("connected");
+    print_serial("connected");
   }
   else
   {
@@ -239,23 +252,15 @@ void setup()
   Serial.printf("Humidity = %.2f Percent \n", humidity);
   Serial.printf("Pressure = %.2f hPa \n", pressure);
   Serial.printf("Gas Resistance = %.2f KOhm \n", gasResistance);
-  Serial.println();
 
   client.publish(MQTT_PUB_TOPIC_TEMP, String(temperature).c_str(), false, 0);
   client.publish(MQTT_PUB_TOPIC_HUM, String(humidity).c_str(), false, 0);
   client.publish(MQTT_PUB_TOPIC_PRES, String(pressure).c_str(), false, 0);
   client.publish(MQTT_PUB_TOPIC_RES, String(gasResistance).c_str(), false, 0);  
   
-  esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR); // ESP32 wakes up every 5 seconds
+  esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR); // ESP32 wakes up every 60 seconds
 
-  esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON); // all RTC Peripherals are powered
-  
-  Serial.println("Going to deep-sleep now");
+  print_serial("Going to light-sleep now");
   Serial.flush(); 
-  esp_deep_sleep_start();
-
-}
-
-void loop()
-{
+  esp_light_sleep_start();    
 }
