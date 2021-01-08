@@ -10,6 +10,9 @@
 #include <Adafruit_Sensor.h>
 #include "Adafruit_BME680.h"
 
+#define uS_TO_S_FACTOR 1000000  /* Conversion factor for micro seconds to seconds */
+#define TIME_TO_SLEEP  60        /* Time ESP32 will go to sleep (in seconds) */
+
 #ifndef SECRET
   const char ssid[] = "WiFiSSID";
   const char pass[] = "WiFiPassword";
@@ -79,6 +82,21 @@ float gasResistance;
 
 time_t now;
 unsigned long lastMillis = 0;
+
+void print_wakeup_reason(){
+  esp_sleep_wakeup_cause_t wakeup_reason;
+  wakeup_reason = esp_sleep_get_wakeup_cause();
+
+  switch(wakeup_reason)
+  {
+    case ESP_SLEEP_WAKEUP_EXT0 : Serial.println("Wakeup caused by external signal using RTC_IO"); break;
+    case ESP_SLEEP_WAKEUP_EXT1 : Serial.println("Wakeup caused by external signal using RTC_CNTL"); break;
+    case ESP_SLEEP_WAKEUP_TIMER : Serial.println("Wakeup caused by timer"); break;
+    case ESP_SLEEP_WAKEUP_TOUCHPAD : Serial.println("Wakeup caused by touchpad"); break;
+    case ESP_SLEEP_WAKEUP_ULP : Serial.println("Wakeup caused by ULP program"); break;
+    default : Serial.printf("Wakeup was not caused by deep sleep: %d\n",wakeup_reason); break;
+  }
+}
 
 void getBME680Readings(){
   // Tell BME680 to begin measurement.
@@ -187,10 +205,11 @@ void setup()
   bme.setPressureOversampling(BME680_OS_4X);
   bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
   bme.setGasHeater(320, 150); // 320*C for 150 ms
-}
 
-void loop()
-{
+  print_wakeup_reason(); //Print the wakeup reason for ESP32
+
+  delay(5000);
+
   now = time(nullptr);
   if (WiFi.status() != WL_CONNECTED)
   {
@@ -215,19 +234,28 @@ void loop()
     }
   }
 
-  if (millis() - lastMillis > 60000) {
-    lastMillis = millis();
+  getBME680Readings();
+  Serial.printf("Temperature = %.2f ºC \n", temperature);
+  Serial.printf("Humidity = %.2f Percent \n", humidity);
+  Serial.printf("Pressure = %.2f hPa \n", pressure);
+  Serial.printf("Gas Resistance = %.2f KOhm \n", gasResistance);
+  Serial.println();
 
-    getBME680Readings();
-    Serial.printf("Temperature = %.2f ºC \n", temperature);
-    Serial.printf("Humidity = %.2f Percent \n", humidity);
-    Serial.printf("Pressure = %.2f hPa \n", pressure);
-    Serial.printf("Gas Resistance = %.2f KOhm \n", gasResistance);
-    Serial.println();
+  client.publish(MQTT_PUB_TOPIC_TEMP, String(temperature).c_str(), false, 0);
+  client.publish(MQTT_PUB_TOPIC_HUM, String(humidity).c_str(), false, 0);
+  client.publish(MQTT_PUB_TOPIC_PRES, String(pressure).c_str(), false, 0);
+  client.publish(MQTT_PUB_TOPIC_RES, String(gasResistance).c_str(), false, 0);  
+  
+  esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR); // ESP32 wakes up every 5 seconds
 
-    client.publish(MQTT_PUB_TOPIC_TEMP, String(temperature).c_str(), false, 0);
-    client.publish(MQTT_PUB_TOPIC_HUM, String(humidity).c_str(), false, 0);
-    client.publish(MQTT_PUB_TOPIC_PRES, String(pressure).c_str(), false, 0);
-    client.publish(MQTT_PUB_TOPIC_RES, String(gasResistance).c_str(), false, 0);
-  }
+  esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON); // all RTC Peripherals are powered
+  
+  Serial.println("Going to deep-sleep now");
+  Serial.flush(); 
+  esp_deep_sleep_start();
+
+}
+
+void loop()
+{
 }
