@@ -17,7 +17,7 @@
 // Defines
 
 #define uS_TO_S_FACTOR 1000000  /* Conversion factor for micro seconds to seconds */
-#define TIME_TO_SLEEP  60       /* Time ESP32 will go to sleep (in seconds) */
+#define TIME_TO_SLEEP  10       /* Time ESP32 will go to sleep (in seconds) */
 
 #define SERIAL_LOG 1            /* Serial log is active or not */
 
@@ -132,6 +132,8 @@ void get_BME680_readings()
 {
   sensor_data sensor_data;
 
+  print_serial("--\nget_BME680_readings()\n--");
+
   // Tell BME680 to begin measurement.
   unsigned long endTime = bme.beginReading();
   if (endTime == 0) {
@@ -147,31 +149,29 @@ void get_BME680_readings()
   sensor_data.humidity = bme.humidity;
   sensor_data.gasResistance = bme.gas_resistance / 1000.0;
 
-  Serial.printf("Temperature = %.2f ºC \n", sensor_data.temperature);
-  Serial.printf("Humidity = %.2f Percent \n", sensor_data.humidity);
-  Serial.printf("Pressure = %.2f hPa \n", sensor_data.pressure);
-  Serial.printf("Gas Resistance = %.2f KOhm \n", sensor_data.gasResistance);  
+  Serial.printf("- Temperature = %.2f ºC \n", sensor_data.temperature);
+  Serial.printf("- Humidity = %.2f Percent \n", sensor_data.humidity);
+  Serial.printf("- Pressure = %.2f hPa \n", sensor_data.pressure);
+  Serial.printf("- Gas Resistance = %.2f KOhm \n", sensor_data.gasResistance);  
 
   sensor_data_buffer.push(sensor_data);
 }
 
 void mqtt_connect()
 {
-  print_serial("Time: ");
-  print_serial(ctime(&now));
-  print_serial("MQTT connecting");
+  print_serial("- MQTT connecting");
   while (!client.connect(HOSTNAME, MQTT_USER, MQTT_PASS))
   {
-    print_serial(".");
+    print_serial("- .");
     delay(1000);
   }
-  print_serial("connected!");
+  print_serial("- MQTT connected");
   client.subscribe(MQTT_SUB_TOPIC);
 }
 
 void messageReceived(String &topic, String &payload)
 {
-  print_serial("Received [" + topic + "]: " + payload);
+  print_serial("- Received [" + topic + "]: " + payload);
 }
 
 void setup()
@@ -222,29 +222,44 @@ void setup()
 
 void send_sensor_data()
 {
+  uint8_t retryCounter = 10;
+  uint8_t number_of_sensor_data = sensor_data_buffer.size();
+
+  print_serial("--\nsend_sensor_data(sensor_data_buffer.size=" + String(number_of_sensor_data) + ")\n--");
+
   if (WiFi.status() != WL_CONNECTED)
   {
-    print_serial("Checking wifi");
+    print_serial("- Checking Wifi");
     while (WiFi.waitForConnectResult() != WL_CONNECTED)
     {
       WiFi.begin(ssid, pass);
       delay(10);
+      retryCounter--;
+      if (retryCounter==0)
+      {
+        throw "Connection to Wifi failed";
+      }
     }
-    print_serial("connected");
+    print_serial("- Wifi connected");
+  }
+
+  // Check mqtt connection otherwise try to connect
+  if (!client.connected())
+  {
+    mqtt_connect();
+
+    if (!client.connected())
+    {
+      throw "Connection to MQTT failed";
+    }
   }
   else
   {
-    if (!client.connected())
-    {
-      mqtt_connect();
-    }
-    else
-    {
-      client.loop();
-    }
+    client.loop();
   }
 
-  for (byte i = 0; i < sensor_data_buffer.size() - 1; i++) {
+  // Send the data
+  for (byte i = 0; i < number_of_sensor_data; i++) {
     sensor_data sensor_data = sensor_data_buffer.pop();
     client.publish(MQTT_PUB_TOPIC_TEMP, String(sensor_data.temperature).c_str(), false, 0);
     client.publish(MQTT_PUB_TOPIC_HUM, String(sensor_data.humidity).c_str(), false, 0);
@@ -261,29 +276,22 @@ void loop()
   // Get the current time
   now = time(nullptr); 
 
-  // Get the sensor data
   try
   {
+    // Get the sensor data
     get_BME680_readings();
-  }
-  catch(const std::exception& e)
-  {
-    print_serial(e.what());
-  }
 
-  // Send the data (all on the buffer)
-  try
-  {
+    // Send the data (all on the buffer)
     send_sensor_data();
   }
   catch(const std::exception& e)
   {
-    print_serial(e.what());
+    print_serial("[E] - " + String(e.what()));
   }
 
   // Go back to sleep
   esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR); // ESP32 wakes up every 60 seconds
   print_serial("Going to light-sleep now");
   Serial.flush(); 
-  esp_light_sleep_start();    
+  esp_light_sleep_start();  
 }
