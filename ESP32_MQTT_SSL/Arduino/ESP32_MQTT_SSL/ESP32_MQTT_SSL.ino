@@ -13,6 +13,7 @@
 #include <esp_wifi.h>
 #include <esp_bt.h>
 #include <CircularBuffer.h>
+#include <ArduinoJson.h>
 
 // Defines
 
@@ -73,15 +74,13 @@
 #endif
 
 const char MQTT_SUB_TOPIC[] = LOCATION "/" HOSTNAME "/in";
-const char MQTT_PUB_TOPIC_TEMP[] = LOCATION "/" HOSTNAME "/out/temperature";
-const char MQTT_PUB_TOPIC_HUM[] = LOCATION "/" HOSTNAME "/out/humidity";
-const char MQTT_PUB_TOPIC_PRES[] = LOCATION "/" HOSTNAME "/out/pressure";
-const char MQTT_PUB_TOPIC_RES[] = LOCATION "/" HOSTNAME "/out/gasResistance";
+const char MQTT_PUB_TOPIC[] = LOCATION "/" HOSTNAME "/out";
 
 // Structs
 
 struct sensor_data 
 {
+  time_t timestamp;
   float temperature;
   float humidity;
   float pressure;
@@ -144,6 +143,8 @@ void get_BME680_readings()
     print_serial("Failed to complete reading :(");
     return;
   }
+
+  sensor_data.timestamp = now;
   sensor_data.temperature = bme.temperature;
   sensor_data.pressure = bme.pressure / 100.0;
   sensor_data.humidity = bme.humidity;
@@ -260,11 +261,19 @@ void send_sensor_data()
 
   // Send the data
   for (byte i = 0; i < number_of_sensor_data; i++) {
-    sensor_data sensor_data = sensor_data_buffer.pop();
-    client.publish(MQTT_PUB_TOPIC_TEMP, String(sensor_data.temperature).c_str(), false, 0);
-    client.publish(MQTT_PUB_TOPIC_HUM, String(sensor_data.humidity).c_str(), false, 0);
-    client.publish(MQTT_PUB_TOPIC_PRES, String(sensor_data.pressure).c_str(), false, 0);
-    client.publish(MQTT_PUB_TOPIC_RES, String(sensor_data.gasResistance).c_str(), false, 0);
+    char payload[200];
+    sensor_data sensor_data = sensor_data_buffer.pop();    
+    DynamicJsonDocument json_doc(200);
+
+    json_doc["timestamp"] = sensor_data.timestamp;
+    json_doc["temperature"] = sensor_data.temperature;
+    json_doc["humidity"] = sensor_data.humidity; 
+    json_doc["pressure"] = sensor_data.pressure; 
+    json_doc["gasResistance"] = sensor_data.gasResistance;    
+
+    serializeJson(json_doc, payload);
+    print_serial(payload);
+    client.publish(MQTT_PUB_TOPIC, payload, false, 0);
   }
 }
 
