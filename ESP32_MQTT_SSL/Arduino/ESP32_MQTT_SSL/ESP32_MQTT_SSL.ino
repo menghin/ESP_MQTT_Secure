@@ -12,6 +12,9 @@
 #include "driver/adc.h"
 #include <esp_wifi.h>
 #include <esp_bt.h>
+#include <CircularBuffer.h>
+
+// Defines
 
 #define uS_TO_S_FACTOR 1000000  /* Conversion factor for micro seconds to seconds */
 #define TIME_TO_SLEEP  60       /* Time ESP32 will go to sleep (in seconds) */
@@ -75,17 +78,26 @@ const char MQTT_PUB_TOPIC_HUM[] = LOCATION "/" HOSTNAME "/out/humidity";
 const char MQTT_PUB_TOPIC_PRES[] = LOCATION "/" HOSTNAME "/out/pressure";
 const char MQTT_PUB_TOPIC_RES[] = LOCATION "/" HOSTNAME "/out/gasResistance";
 
+// Structs
+
+struct sensor_data 
+{
+  float temperature;
+  float humidity;
+  float pressure;
+  float gasResistance;
+};
+
+// Global variables
+
 WiFiClientSecure net;
 MQTTClient client;
-
 Adafruit_BME680 bme; // I2C
-
-float temperature;
-float humidity;
-float pressure;
-float gasResistance;
+CircularBuffer<sensor_data,100> sensor_data_buffer; 
 
 time_t now;
+
+// Internal functions
 
 #if (SERIAL_LOG == 1)
 void print_wakeup_reason(){
@@ -116,7 +128,10 @@ void print_serial(String msg){
 #define setup_serial()
 #endif
 
-void getBME680Readings(){
+void get_BME680_readings()
+{
+  sensor_data sensor_data;
+
   // Tell BME680 to begin measurement.
   unsigned long endTime = bme.beginReading();
   if (endTime == 0) {
@@ -127,32 +142,17 @@ void getBME680Readings(){
     print_serial("Failed to complete reading :(");
     return;
   }
-  temperature = bme.temperature;
-  pressure = bme.pressure / 100.0;
-  humidity = bme.humidity;
-  gasResistance = bme.gas_resistance / 1000.0;
-}
+  sensor_data.temperature = bme.temperature;
+  sensor_data.pressure = bme.pressure / 100.0;
+  sensor_data.humidity = bme.humidity;
+  sensor_data.gasResistance = bme.gas_resistance / 1000.0;
 
-String processor(const String& var){
-  getBME680Readings();
-  if(var == "TEMPERATURE"){
-    return String(temperature);
-  }
-  else if(var == "HUMIDITY"){
-    return String(humidity);
-  }
-  else if(var == "PRESSURE"){
-    return String(pressure);
-  }
-  else if(var == "GAS"){
-    return String(gasResistance);
-  }
-  else{
-    print_serial("Sensor id unknown!");
-    while (1);
-  }
+  Serial.printf("Temperature = %.2f ºC \n", sensor_data.temperature);
+  Serial.printf("Humidity = %.2f Percent \n", sensor_data.humidity);
+  Serial.printf("Pressure = %.2f hPa \n", sensor_data.pressure);
+  Serial.printf("Gas Resistance = %.2f KOhm \n", sensor_data.gasResistance);  
 
-
+  sensor_data_buffer.push(sensor_data);
 }
 
 void mqtt_connect()
@@ -220,11 +220,8 @@ void setup()
   bme.setGasHeater(320, 150); // 320*C for 150 ms  
 }
 
-void loop()
+void send_sensor_data()
 {
-  print_wakeup_reason(); //Print the wakeup reason for ESP32 
-
-  now = time(nullptr);
   if (WiFi.status() != WL_CONNECTED)
   {
     print_serial("Checking wifi");
@@ -247,19 +244,45 @@ void loop()
     }
   }
 
-  getBME680Readings();
-  Serial.printf("Temperature = %.2f ºC \n", temperature);
-  Serial.printf("Humidity = %.2f Percent \n", humidity);
-  Serial.printf("Pressure = %.2f hPa \n", pressure);
-  Serial.printf("Gas Resistance = %.2f KOhm \n", gasResistance);
+  for (byte i = 0; i < sensor_data_buffer.size() - 1; i++) {
+    sensor_data sensor_data = sensor_data_buffer.pop();
+    client.publish(MQTT_PUB_TOPIC_TEMP, String(sensor_data.temperature).c_str(), false, 0);
+    client.publish(MQTT_PUB_TOPIC_HUM, String(sensor_data.humidity).c_str(), false, 0);
+    client.publish(MQTT_PUB_TOPIC_PRES, String(sensor_data.pressure).c_str(), false, 0);
+    client.publish(MQTT_PUB_TOPIC_RES, String(sensor_data.gasResistance).c_str(), false, 0);
+  }
+}
 
-  client.publish(MQTT_PUB_TOPIC_TEMP, String(temperature).c_str(), false, 0);
-  client.publish(MQTT_PUB_TOPIC_HUM, String(humidity).c_str(), false, 0);
-  client.publish(MQTT_PUB_TOPIC_PRES, String(pressure).c_str(), false, 0);
-  client.publish(MQTT_PUB_TOPIC_RES, String(gasResistance).c_str(), false, 0);  
-  
+void loop()
+{
+  // Print the wakeup reason for ESP32 
+  print_wakeup_reason(); 
+
+  // Get the current time
+  now = time(nullptr); 
+
+  // Get the sensor data
+  try
+  {
+    get_BME680_readings();
+  }
+  catch(const std::exception& e)
+  {
+    print_serial(e.what());
+  }
+
+  // Send the data (all on the buffer)
+  try
+  {
+    send_sensor_data();
+  }
+  catch(const std::exception& e)
+  {
+    print_serial(e.what());
+  }
+
+  // Go back to sleep
   esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR); // ESP32 wakes up every 60 seconds
-
   print_serial("Going to light-sleep now");
   Serial.flush(); 
   esp_light_sleep_start();    
