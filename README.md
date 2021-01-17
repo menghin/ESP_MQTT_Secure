@@ -83,6 +83,20 @@ Example:
 
 The resulting mqtt channel is then LOCATION "/" HOSTNAME "/out/sensorid";
 
+# Using ESP-IDF
+
+In the subfolder ESP32_IDF the source is created using the ESP-IDF.
+This can be build and run using (based on an example):
+
+```
+  // Change C:\git\ESP_MQTT_Secure\ to the checkout folder
+  C:\git\ESP_MQTT_Secure\ESP32_IDF
+  idf.py build
+  // Change com port to the used port for the ESP 32
+  idf.py -p COM4 flash
+  idf.py -p COM4 monitor
+```
+
 # Links
 https://maker.pro/arduino/tutorial/how-to-use-platformio-in-visual-studio-code-to-program-arduino
 https://www.youtube.com/watch?v=ytQUbyab4es
