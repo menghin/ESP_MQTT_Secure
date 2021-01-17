@@ -1,3 +1,5 @@
 /ESP32_MQTT_SSL/.vscode/settings.json
 /ESP32_MQTT_SSL/Arduino/ESP32_MQTT_SSL/secrets_*.h
 /ESP32_IDF/build/*
+/ESP32_IDF/sdkconfig
+/ESP32_IDF/.vscode/*
