@@ -45,12 +45,6 @@ void app_main(void)
     const int wakeup_time_sec = WAKEUP_TIME_SEC;
     ESP_LOGI("app_main", "Enabling timer wakeup, %d s", wakeup_time_sec);
     esp_sleep_enable_timer_wakeup(wakeup_time_sec * 1000000);
-#if CONFIG_IDF_TARGET_ESP32
-    // Isolate GPIO12 pin from external circuits. This is needed for modules
-    // which have an external pull-up resistor on GPIO12 (such as ESP32-WROVER)
-    // to minimize current consumption.
-    rtc_gpio_isolate(GPIO_NUM_12);
-#endif
 
     // Initialize NVS
     esp_err_t ret = nvs_flash_init();
@@ -62,9 +56,24 @@ void app_main(void)
     ESP_ERROR_CHECK(ret);
 
     // Main process
-    mqtt_sensor_wifi_connect_to_sta();
+    if (mqtt_sensor_wifi_connect_to_sta() == ESP_OK)
+    {
+        // Blink once
+        gpio_pad_select_gpio(GPIO_NUM_5);
+        /* Set the GPIO as a push/pull output */
+        gpio_set_direction(GPIO_NUM_5, GPIO_MODE_OUTPUT);
+        gpio_set_level(GPIO_NUM_5, 1);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        gpio_set_level(GPIO_NUM_5, 0);
+    }
 
     // Code executed when leaving app_main
+#if CONFIG_IDF_TARGET_ESP32
+    // Isolate GPIO12 pin from external circuits. This is needed for modules
+    // which have an external pull-up resistor on GPIO12 (such as ESP32-WROVER)
+    // to minimize current consumption.
+    rtc_gpio_isolate(GPIO_NUM_12);
+#endif    
     gettimeofday(&leave_app_main_time, NULL);
     app_main_duration_ms = (leave_app_main_time.tv_sec - enter_app_main_time.tv_sec) * 1000 + (leave_app_main_time.tv_usec - enter_app_main_time.tv_usec) / 1000;
     ESP_LOGI("app_main", "Entering deep sleep again after %d ms.", app_main_duration_ms);
