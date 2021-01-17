@@ -16,8 +16,23 @@
 #include "driver/rtc_io.h"
 #include "soc/sens_periph.h"
 #include "soc/rtc.h"
+#include "freertos/event_groups.h"
+#include "esp_system.h"
+#include "esp_wifi.h"
+#include "esp_event.h"
+#include "nvs_flash.h"
+#include "lwip/err.h"
+#include "lwip/sys.h"
 
-#define WAKEUP_TIME_SEC 5  //!< Time how long the device goes to deep sleep
+#include "freertos/event_groups.h"
+#include "esp_wifi.h"
+#include "esp_log.h"
+#include "esp_event.h"
+#include "nvs_flash.h"
+
+#include "mqtt_sensor_wifi.h"
+
+#define WAKEUP_TIME_SEC 5 //!< Time how long the device goes to deep sleep
 
 void app_main(void)
 {
@@ -37,12 +52,21 @@ void app_main(void)
     rtc_gpio_isolate(GPIO_NUM_12);
 #endif
 
-    // Main process
+    // Initialize NVS
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
 
+    // Main process
+    mqtt_sensor_wifi_connect_to_sta();
 
     // Code executed when leaving app_main
     gettimeofday(&leave_app_main_time, NULL);
     app_main_duration_ms = (leave_app_main_time.tv_sec - enter_app_main_time.tv_sec) * 1000 + (leave_app_main_time.tv_usec - enter_app_main_time.tv_usec) / 1000;
     ESP_LOGI("app_main", "Entering deep sleep again after %d ms.", app_main_duration_ms);
     esp_deep_sleep_start();
-} 
+}

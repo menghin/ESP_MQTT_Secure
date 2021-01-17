@@ -3,3 +3,5 @@
 /ESP32_IDF/build/*
 /ESP32_IDF/sdkconfig
 /ESP32_IDF/.vscode/*
+/ESP32_IDF/main/secret_local.h
+*_secret_local.h
