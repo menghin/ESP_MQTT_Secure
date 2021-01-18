@@ -15,7 +15,6 @@ extern "C"
 {
 #endif
 
-#include "esp_types.h"
 #include "esp_err.h"
 
     esp_err_t mqtt_sensor_wifi_connect_to_sta(void);

@@ -14,10 +14,6 @@
 extern "C"
 {
 #endif
-
-#include "esp_types.h"
-#include "esp_err.h"
-
     struct sensor_data
     {
         time_t timestamp;
