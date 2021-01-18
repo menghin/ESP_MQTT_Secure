@@ -31,6 +31,7 @@
 #include "nvs_flash.h"
 
 #include "mqtt_sensor_wifi.h"
+#include "mqtt_sensor_data.h"
 
 #define WAKEUP_TIME_SEC 5 //!< Time how long the device goes to deep sleep
 
@@ -65,6 +66,20 @@ void app_main(void)
         gpio_set_level(GPIO_NUM_5, 1);
         vTaskDelay(100 / portTICK_PERIOD_MS);
         gpio_set_level(GPIO_NUM_5, 0);
+
+        uint32_t current_buffer_index = mqtt_sensor_data_count();
+
+        for (int32_t i = 0; i < 10; i++)
+        {
+            struct sensor_data item;
+            item.gasResistance = current_buffer_index;
+            mqtt_sensor_data_push(&item);
+        }
+
+        ESP_LOGI("app_main", "current_buffer_index %d.", current_buffer_index);
+        struct sensor_data item;
+        mqtt_sensor_data_pop(&item);
+        ESP_LOGI("app_main", "one poped item %f.", item.gasResistance);
     }
 
     // Code executed when leaving app_main
@@ -73,7 +88,7 @@ void app_main(void)
     // which have an external pull-up resistor on GPIO12 (such as ESP32-WROVER)
     // to minimize current consumption.
     rtc_gpio_isolate(GPIO_NUM_12);
-#endif    
+#endif
     gettimeofday(&leave_app_main_time, NULL);
     app_main_duration_ms = (leave_app_main_time.tv_sec - enter_app_main_time.tv_sec) * 1000 + (leave_app_main_time.tv_usec - enter_app_main_time.tv_usec) / 1000;
     ESP_LOGI("app_main", "Entering deep sleep again after %d ms.", app_main_duration_ms);
