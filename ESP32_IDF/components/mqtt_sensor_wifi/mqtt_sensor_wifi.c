@@ -130,10 +130,10 @@ esp_err_t mqtt_sensor_wifi_connect_to_sta(void)
     ESP_ERROR_CHECK(esp_wifi_scan_start(&scan_config, true));
     ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(&number_of_scanned_ap, ap_info));
     ESP_ERROR_CHECK(esp_wifi_scan_get_ap_num(&ap_count));
-    
+
     if (ap_count == 0)
     {
-        ESP_LOGI(TAG,  "AP not available.");
+        ESP_LOGI(TAG, "AP not available.");
         return status;
     }
 

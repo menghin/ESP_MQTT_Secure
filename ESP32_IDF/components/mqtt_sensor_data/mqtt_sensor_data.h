@@ -18,18 +18,18 @@ extern "C"
 #include "esp_types.h"
 #include "esp_err.h"
 
-   struct sensor_data
-   {
-      time_t timestamp;
-      float temperature;
-      float humidity;
-      float pressure;
-      float gasResistance;
-   };
+    struct sensor_data
+    {
+        time_t timestamp;
+        float temperature;
+        float humidity;
+        float pressure;
+        float gasResistance;
+    };
 
-   uint32_t mqtt_sensor_data_count(void);
-   void mqtt_sensor_data_push(struct sensor_data *item);
-   void mqtt_sensor_data_pop(struct sensor_data *item);
+    uint32_t mqtt_sensor_data_count(void);
+    void mqtt_sensor_data_push(struct sensor_data *item);
+    void mqtt_sensor_data_pop(struct sensor_data *item);
 
 #ifdef __cplusplus
 }

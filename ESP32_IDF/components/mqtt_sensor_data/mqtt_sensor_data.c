@@ -49,7 +49,7 @@ void mqtt_sensor_data_pop(struct sensor_data *item)
 {
     if (mqtt_sensor_data_count() > 0)
     {
-        memcpy((void *)item, (void *)(sensor_data_buffer-1), sizeof(struct sensor_data));
+        memcpy((void *)item, (void *)(sensor_data_buffer - 1), sizeof(struct sensor_data));
         sensor_data_buffer--;
     }
 }
