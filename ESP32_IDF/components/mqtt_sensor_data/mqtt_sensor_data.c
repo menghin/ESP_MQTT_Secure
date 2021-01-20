@@ -7,8 +7,8 @@
 
 #define BUFFER_SIZE 400
 
-#define SENSOR_DATA_START_ADDR ((uint32_t *)0x50000000)
-static RTC_DATA_ATTR struct sensor_data *sensor_data_buffer = (struct sensor_data *)SENSOR_DATA_START_ADDR;
+#define SENSOR_DATA_START_ADDR ((uint32_t *)0x50000100)
+static struct sensor_data *sensor_data_buffer = (struct sensor_data *)SENSOR_DATA_START_ADDR;
 
 uint32_t mqtt_sensor_data_count(void)
 {
