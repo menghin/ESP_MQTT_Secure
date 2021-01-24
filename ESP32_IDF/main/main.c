@@ -38,53 +38,37 @@ void app_main(void)
     ESP_ERROR_CHECK(ret);
 
     // Main process
-    if (mqtt_sensor_bme680_init() == ESP_OK)
+    struct sensor_data results;
+
+    uint32_t current_buffer_index = mqtt_sensor_data_count();
+    ESP_LOGI(TAG, "current_buffer_index %d.", current_buffer_index);
+    mqtt_sensor_data_pop(&results);
+    ESP_LOGI(TAG, "%.3f BME680 Sensor (pop): %.2f °C, %.2f %%, %.2f hPa, %.2f Ohm",
+             (double)sdk_system_get_time() * 1e-3,
+             results.temperature, results.humidity,
+             results.pressure, results.gasResistance);
+
+    if (mqtt_sensor_bme680_get_results_blocking(&results) == ESP_OK)
     {
-        for (int32_t i = 0; i < 10; i++)
+        ESP_LOGI(TAG, "%.3f BME680 Sensor (push): %.2f °C, %.2f %%, %.2f hPa, %.2f Ohm",
+                 (double)sdk_system_get_time() * 1e-3,
+                 results.temperature, results.humidity,
+                 results.pressure, results.gasResistance);
+        mqtt_sensor_data_push(&results);
+
+        if (mqtt_sensor_wifi_connect_to_sta() == ESP_OK)
         {
-            bme680_values_float_t results;
-            if (mqtt_sensor_bme680_get_results_blocking(&results) == ESP_OK)
-            {
-                ESP_LOGI(TAG, "%.3f BME680 Sensor: %.2f °C, %.2f %%, %.2f hPa, %.2f Ohm",
-                       (double)sdk_system_get_time() * 1e-3,
-                       results.temperature, results.humidity,
-                       results.pressure, results.gas_resistance);
-            }
-            else
-            {
-                ESP_LOGE(TAG, "Could not get sensor data from BME680 sensor");
-            }
+            // Blink once
+            gpio_pad_select_gpio(GPIO_NUM_5);
+            /* Set the GPIO as a push/pull output */
+            gpio_set_direction(GPIO_NUM_5, GPIO_MODE_OUTPUT);
+            gpio_set_level(GPIO_NUM_5, 1);
+            vTaskDelay(100 / portTICK_PERIOD_MS);
+            gpio_set_level(GPIO_NUM_5, 0);
         }
     }
-    else
-        ESP_LOGE(TAG, "Could not initialize BME680 sensor");
 
-    if (mqtt_sensor_wifi_connect_to_sta() == ESP_OK)
-    {
-        // Blink once
-        gpio_pad_select_gpio(GPIO_NUM_5);
-        /* Set the GPIO as a push/pull output */
-        gpio_set_direction(GPIO_NUM_5, GPIO_MODE_OUTPUT);
-        gpio_set_level(GPIO_NUM_5, 1);
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-        gpio_set_level(GPIO_NUM_5, 0);
-
-        uint32_t current_buffer_index = mqtt_sensor_data_count();
-
-        for (int32_t i = 0; i < 10; i++)
-        {
-            struct sensor_data item;
-            item.gasResistance = current_buffer_index;
-            mqtt_sensor_data_push(&item);
-        }
-
-        ESP_LOGI(TAG, "current_buffer_index %d.", current_buffer_index);
-        struct sensor_data item;
-        mqtt_sensor_data_pop(&item);
-        ESP_LOGI(TAG, "one poped item %f.", item.gasResistance);
-    }
-
-    // Code executed when leaving app_main
+// Code executed when leaving app_main
 #if CONFIG_IDF_TARGET_ESP32
     // Isolate GPIO12 pin from external circuits. This is needed for modules
     // which have an external pull-up resistor on GPIO12 (such as ESP32-WROVER)

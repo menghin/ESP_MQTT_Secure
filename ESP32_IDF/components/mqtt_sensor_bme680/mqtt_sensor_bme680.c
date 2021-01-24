@@ -4,6 +4,7 @@
 #include <string.h>
 #include "driver/i2c.h"
 #include "driver/gpio.h"
+#include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <mqtt_sensor_bme680.h>
 
@@ -14,7 +15,9 @@ static uint32_t *one_time_init = (uint32_t *)ONE_TIME_INIT_ADDR;
 #define SENSOR_INSTANCE_START_ADDR ((uint32_t *)0x50000004)
 static bme680_sensor_t *sensor = (bme680_sensor_t *)SENSOR_INSTANCE_START_ADDR;
 
-esp_err_t mqtt_sensor_bme680_init(void)
+static const char *TAG = "mqtt_sensor_bme680";
+
+static esp_err_t mqtt_sensor_bme680_init(void)
 {
     esp_err_t status = ESP_FAIL;
 
@@ -53,6 +56,10 @@ esp_err_t mqtt_sensor_bme680_init(void)
 
             *one_time_init = ONE_TIME_INIT_MAGIC_WORD;
         }
+        else
+        {
+            ESP_LOGE(TAG, "Could not initialize BME680 sensor");
+        }
     }
     else
     {
@@ -62,23 +69,36 @@ esp_err_t mqtt_sensor_bme680_init(void)
     return status;
 }
 
-esp_err_t mqtt_sensor_bme680_get_results_blocking(bme680_values_float_t *results)
+esp_err_t mqtt_sensor_bme680_get_results_blocking(struct sensor_data *results)
 {
     esp_err_t status = ESP_FAIL;
+    bme680_values_float_t bme680_result;
 
-    // trigger the sensor to start one TPHG measurement cycle
-    if (bme680_force_measurement(sensor))
+    if (mqtt_sensor_bme680_init() == ESP_OK)
     {
-        // as long as sensor configuration isn't changed, duration is constant
-        uint32_t duration = bme680_get_measurement_duration(sensor);
-
-        // passive waiting until measurement results are available
-        vTaskDelay(duration);
-
-        // get the results and do something with them
-        if (bme680_get_results_float(sensor, results))
+        // trigger the sensor to start one TPHG measurement cycle
+        if (bme680_force_measurement(sensor))
         {
-            status = ESP_OK;
+            // as long as sensor configuration isn't changed, duration is constant
+            uint32_t duration = bme680_get_measurement_duration(sensor);
+
+            // passive waiting until measurement results are available
+            vTaskDelay(duration);
+
+            // get the results and do something with them
+            if (bme680_get_results_float(sensor, &bme680_result))
+            {
+                results->temperature = bme680_result.temperature;
+                results->humidity = bme680_result.humidity;
+                results->pressure = bme680_result.pressure;
+                results->gasResistance = bme680_result.gas_resistance;
+
+                status = ESP_OK;
+            }
+        }
+        else
+        {
+            ESP_LOGE(TAG, "Could not get sensor data from BME680 sensor");
         }
     }
 

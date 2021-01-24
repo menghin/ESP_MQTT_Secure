@@ -17,10 +17,9 @@ extern "C"
 
 #include "esp_err.h"
 #include <bme680.h>
+#include <mqtt_sensor_data.h>
 
-    esp_err_t mqtt_sensor_bme680_init(void);
-
-    esp_err_t mqtt_sensor_bme680_get_results_blocking(bme680_values_float_t *results);
+    esp_err_t mqtt_sensor_bme680_get_results_blocking(struct sensor_data *results);
 
 #ifdef __cplusplus
 }
