@@ -1,4 +1,4 @@
-/* mqtt_sensor_bem680
+/* mqtt_sensor_bme680
 */
 
 #include <string.h>
@@ -92,6 +92,7 @@ esp_err_t mqtt_sensor_bme680_get_results_blocking(struct sensor_data *results)
                 results->humidity = bme680_result.humidity;
                 results->pressure = bme680_result.pressure;
                 results->gasResistance = bme680_result.gas_resistance;
+                results->timestamp = 1611512746;
 
                 status = ESP_OK;
             }

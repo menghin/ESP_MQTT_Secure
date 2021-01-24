@@ -5,3 +5,4 @@
 /ESP32_IDF/.vscode/*
 /ESP32_IDF/main/secret_local.h
 *_secret_local.h
+/ESP32_IDF/main/secrets_local.h

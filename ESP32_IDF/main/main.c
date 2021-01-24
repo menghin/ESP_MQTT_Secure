@@ -8,9 +8,11 @@
 #include <esp_log.h>
 #include <driver/rtc_io.h>
 #include <nvs_flash.h>
+
 #include <mqtt_sensor_wifi.h>
 #include <mqtt_sensor_data.h>
 #include <mqtt_sensor_bme680.h>
+#include <mqtt_sensor_mqtt.h>
 
 #define WAKEUP_TIME_SEC 5 //!< Time how long the device goes to deep sleep
 
@@ -40,9 +42,6 @@ void app_main(void)
     // Main process
     struct sensor_data results;
 
-    uint32_t current_buffer_index = mqtt_sensor_data_count();
-    ESP_LOGI(TAG, "current_buffer_index %d.", current_buffer_index);
-    mqtt_sensor_data_pop(&results);
     ESP_LOGI(TAG, "%.3f BME680 Sensor (pop): %.2f °C, %.2f %%, %.2f hPa, %.2f Ohm",
              (double)sdk_system_get_time() * 1e-3,
              results.temperature, results.humidity,
@@ -58,13 +57,16 @@ void app_main(void)
 
         if (mqtt_sensor_wifi_connect_to_sta() == ESP_OK)
         {
-            // Blink once
-            gpio_pad_select_gpio(GPIO_NUM_5);
-            /* Set the GPIO as a push/pull output */
-            gpio_set_direction(GPIO_NUM_5, GPIO_MODE_OUTPUT);
-            gpio_set_level(GPIO_NUM_5, 1);
-            vTaskDelay(100 / portTICK_PERIOD_MS);
-            gpio_set_level(GPIO_NUM_5, 0);
+            mqtt_sensor_mqtt_connect();
+
+            uint32_t current_buffer_index = mqtt_sensor_data_count();
+            ESP_LOGI(TAG, "current_buffer_index %d.", current_buffer_index);
+
+            for (uint32_t i = 0; i < current_buffer_index; i++)
+            {
+                mqtt_sensor_data_pop(&results);
+                mqtt_sensor_mqtt_publish(&results);
+            }
         }
     }
 
