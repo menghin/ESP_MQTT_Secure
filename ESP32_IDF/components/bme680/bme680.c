@@ -905,25 +905,23 @@ static bool bme680_reset (bme680_sensor_t* dev)
  * @brief   Calculate temperature from raw temperature value
  * @ref     BME280 datasheet, page 50
  */
-static int16_t bme680_convert_temperature (bme680_sensor_t *dev, uint32_t raw_temperature)
+static int16_t bme680_convert_temperature (bme680_sensor_t *dev, uint32_t temp_adc)
 {
     if (!dev) return 0;
 
-    bme680_calib_data_t* cd = &dev->calib_data;
+	int64_t var1;
+	int64_t var2;
+	int64_t var3;
+	int16_t calc_temp;
 
-    int64_t var1;
-    int64_t var2;
-    int16_t temperature;
+	var1 = ((int32_t) temp_adc >> 3) - ((int32_t) dev->calib_data.par_t1 << 1);
+	var2 = (var1 * (int32_t) dev->calib_data.par_t2) >> 11;
+	var3 = ((var1 >> 1) * (var1 >> 1)) >> 12;
+	var3 = ((var3) * ((int32_t) dev->calib_data.par_t3 << 4)) >> 14;
+	dev->calib_data.t_fine = (int32_t) (var2 + var3);
+	calc_temp = (int16_t) (((dev->calib_data.t_fine * 5) + 128) >> 8);
 
-    var1 = ((((raw_temperature >> 3) - ((int32_t)cd->par_t1 << 1))) *
-            ((int32_t)cd->par_t2)) >> 11;
-    var2 = (((((raw_temperature >> 4) - ((int32_t)cd->par_t1)) *
-              ((raw_temperature >> 4) - ((int32_t)cd->par_t1))) >> 12) *
-            ((int32_t)cd->par_t3)) >> 14;
-    cd->t_fine = (int32_t)(var1 + var2);
-    temperature = (cd->t_fine * 5 + 128) >> 8;
-
-    return temperature;
+	return calc_temp;
 }
 
 
@@ -1266,7 +1264,7 @@ static bool bme680_spi_set_mem_page (bme680_sensor_t* dev, uint8_t reg)
 static bool bme680_spi_read(bme680_sensor_t* dev, uint8_t reg, uint8_t *data, uint16_t len)
 {
     if (!dev || !data) return false;
-    
+
     if (len >= BME680_SPI_BUF_SIZE)
     {
         dev->error_code |= BME680_SPI_BUFFER_OVERFLOW;
@@ -1294,7 +1292,7 @@ static bool bme680_spi_read(bme680_sensor_t* dev, uint8_t reg, uint8_t *data, ui
     memset (miso, 0xff, BME680_SPI_BUF_SIZE);
 
     mosi[0] = reg;
-    
+
     if (!spi_transfer_pf (dev->bus, dev->cs, mosi, miso, len+1))
     {
         error_dev ("Could not read data from SPI", __FUNCTION__, dev);
