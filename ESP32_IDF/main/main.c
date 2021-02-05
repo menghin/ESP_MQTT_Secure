@@ -15,7 +15,7 @@
 #include <mqtt_sensor_mqtt.h>
 #include <mqtt_sensor_sntp.h>
 
-#define WAKEUP_TIME_SEC 150 //!< Time how long the device goes to deep sleep
+#define WAKEUP_TIME_SEC 120 //!< Time how long the device goes to deep sleep
 
 static const char *TAG = "main";
 
@@ -42,11 +42,6 @@ void app_main(void)
 
     // Main process
     struct sensor_data results;
-
-    ESP_LOGI(TAG, "%.3f BME680 Sensor (pop): %.2f °C, %.2f %%, %.2f hPa, %.2f Ohm",
-             (double)sdk_system_get_time() * 1e-3,
-             results.temperature, results.humidity,
-             results.pressure, results.gasResistance);
 
     if (mqtt_sensor_bme680_get_results_blocking(&results) == ESP_OK)
     {
@@ -82,6 +77,6 @@ void app_main(void)
 #endif
     gettimeofday(&leave_app_main_time, NULL);
     app_main_duration_ms = (leave_app_main_time.tv_sec - enter_app_main_time.tv_sec) * 1000 + (leave_app_main_time.tv_usec - enter_app_main_time.tv_usec) / 1000;
-    ESP_LOGI(TAG, "Entering deep sleep again after %d ms.", app_main_duration_ms);
+    ESP_LOGW(TAG, "Entering deep sleep again after %d ms.", app_main_duration_ms);
     esp_deep_sleep_start();
 }
