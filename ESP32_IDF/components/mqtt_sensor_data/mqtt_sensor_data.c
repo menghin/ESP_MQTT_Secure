@@ -5,8 +5,6 @@
 #include <freertos/FreeRTOS.h>
 #include <mqtt_sensor_data.h>
 
-#define BUFFER_SIZE 400
-
 #define ONE_TIME_INIT_ADDR ((uint32_t *)0x5000000C)
 #define ONE_TIME_INIT_MAGIC_WORD 0xBABABABA
 static uint32_t *one_time_init = (uint32_t *)ONE_TIME_INIT_ADDR;
@@ -32,18 +30,26 @@ uint32_t mqtt_sensor_data_count(void)
 
 void mqtt_sensor_data_push(struct sensor_data *item)
 {
-    if (mqtt_sensor_data_count() < BUFFER_SIZE)
+    if (mqtt_sensor_data_count() < MQTT_SENSOR_DATA_BUFFER_SIZE)
     {
         memcpy((void *)*sensor_data_buffer, (void *)item, sizeof(struct sensor_data));
         (*sensor_data_buffer)++;
     }
 }
 
-void mqtt_sensor_data_pop(struct sensor_data *item)
+
+void mqtt_sensor_data_drop()
+{
+    if (mqtt_sensor_data_count() > 0)
+    {
+        (*sensor_data_buffer)--;
+    }
+}
+
+void mqtt_sensor_data_get_last(struct sensor_data *item)
 {
     if (mqtt_sensor_data_count() > 0)
     {
         memcpy((void *)item, (void *)((*sensor_data_buffer) - 1), sizeof(struct sensor_data));
-        (*sensor_data_buffer)--;
     }
 }

@@ -14,6 +14,9 @@
 extern "C"
 {
 #endif
+
+#define MQTT_SENSOR_DATA_BUFFER_SIZE 375
+
     struct sensor_data
     {
         time_t timestamp;
@@ -25,7 +28,8 @@ extern "C"
 
     uint32_t mqtt_sensor_data_count(void);
     void mqtt_sensor_data_push(struct sensor_data *item);
-    void mqtt_sensor_data_pop(struct sensor_data *item);
+    void mqtt_sensor_data_get_last(struct sensor_data *item);
+    void mqtt_sensor_data_drop();
 
 #ifdef __cplusplus
 }

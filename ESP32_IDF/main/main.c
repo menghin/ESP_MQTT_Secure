@@ -15,7 +15,7 @@
 #include <mqtt_sensor_mqtt.h>
 #include <mqtt_sensor_sntp.h>
 
-#define WAKEUP_TIME_SEC 120 //!< Time how long the device goes to deep sleep
+#define WAKEUP_TIME_SEC 10 //!< Time how long the device goes to deep sleep
 
 static const char *TAG = "main";
 
@@ -62,8 +62,17 @@ void app_main(void)
 
             for (uint32_t i = 0; i < current_buffer_index; i++)
             {
-                mqtt_sensor_data_pop(&results);
-                mqtt_sensor_mqtt_publish(&results);
+                mqtt_sensor_data_get_last(&results);
+                if (mqtt_sensor_mqtt_publish(&results) == ESP_OK)
+                {
+                    mqtt_sensor_mqtt_publish(&results);
+                    mqtt_sensor_data_drop();
+                }
+                else
+                {
+                    ESP_LOGI(TAG, "mqtt_sensor_mqtt_publish failed - will retry next iteration.");
+                    break;
+                }
             }
         }
     }
