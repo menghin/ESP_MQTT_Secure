@@ -1,29 +1,30 @@
 /* mqtt_sensor_wifi
 */
 
-
 #include <string.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include <esp_wifi.h>
 #include <esp_log.h>
-#include <mqtt_sensor_wifi_secret_local.h>
+#include <nvs_flash.h>
+#include "mqtt_sensor_wifi.h"
 
-#define USE_SECRET_LOCAL
-
-#ifdef USE_SECRET_LOCAL
-#include "mqtt_sensor_wifi_secret_local.h"
-#else
-/* Used WIFI SSID*/
-#define ESP_WIFI_SSID "WIFI_SSID"
-/* Used WIFI password*/
-#define ESP_WIFI_PASS "WIFI_PASS"
-/* Used WIFI Channel*/
-#define ESP_WIFI_CHANNEL 0
-#endif
+#define ESP_RETURN_ERROR(x)                  \
+    do                                       \
+    {                                        \
+        esp_err_t __err_rc = (x);            \
+        if (__err_rc != ESP_OK)              \
+        {                                    \
+            mqtt_sensor_wifi_disconnect_to_sta(); \
+            return ESP_FAIL;                 \
+        }                                    \
+    } while (0)
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
+
+/* Craeted netif handler when connecting*/
+static esp_netif_t *handler = NULL;
 
 /* The event group allows multiple bits for each event, but we only care about two events:
  * - we are connected to the AP with an IP
@@ -67,48 +68,56 @@ static void event_handler(void *arg, esp_event_base_t event_base,
     }
 }
 
-esp_err_t mqtt_sensor_wifi_connect_to_sta(void)
+esp_err_t mqtt_sensor_wifi_connect_to_sta(mqtt_sensor_wifi_config_t mqtt_sensor_wifi_config)
 {
     uint16_t number_of_scanned_ap = 1;
     esp_err_t status = ESP_FAIL;
     wifi_ap_record_t ap_info[number_of_scanned_ap];
     uint16_t ap_count = 0;
-    char ssid[] = ESP_WIFI_SSID;
+    nvs_stats_t nvs_stats;
+
+    if (nvs_get_stats(NULL, &nvs_stats) == ESP_ERR_NVS_NOT_INITIALIZED)
+    {
+        ESP_LOGE(TAG, "NVS needs to be initalized!");
+        return status;
+    }
 
     s_wifi_event_group = xEventGroupCreate();
 
-    ESP_ERROR_CHECK(esp_netif_init());
-
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_create_default_wifi_sta();
+    ESP_RETURN_ERROR(esp_netif_init());
+    ESP_RETURN_ERROR(esp_event_loop_create_default());
+    handler = esp_netif_create_default_wifi_sta();
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    ESP_RETURN_ERROR(esp_wifi_init(&cfg));
 
     memset(ap_info, 0, sizeof(ap_info));
 
     wifi_scan_config_t scan_config = {0};
-    scan_config.ssid = (uint8_t *)ssid;
-    scan_config.channel = 3;
+    scan_config.ssid = mqtt_sensor_wifi_config.ssid;
+    scan_config.channel = mqtt_sensor_wifi_config.channel;
     scan_config.scan_time.active.max = 10;
     scan_config.scan_time.passive = 10;
 
     wifi_config_t wifi_config = {
         .sta = {
-            .ssid = ESP_WIFI_SSID,
-            .password = ESP_WIFI_PASS,
+            .ssid = {0},
+            .password = {0},
             .scan_method = WIFI_FAST_SCAN,
             .sort_method = WIFI_CONNECT_AP_BY_SIGNAL,
-            .channel = ESP_WIFI_CHANNEL,
+            .channel = mqtt_sensor_wifi_config.channel,
             .threshold.authmode = WIFI_AUTH_WPA2_PSK,
         },
     };
 
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_start());
-    ESP_ERROR_CHECK(esp_wifi_scan_start(&scan_config, true));
-    ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(&number_of_scanned_ap, ap_info));
-    ESP_ERROR_CHECK(esp_wifi_scan_get_ap_num(&ap_count));
+    memcpy(&wifi_config.sta.ssid, &mqtt_sensor_wifi_config.ssid, sizeof(mqtt_sensor_wifi_config.ssid));
+    memcpy(&wifi_config.sta.password, &mqtt_sensor_wifi_config.password, sizeof(mqtt_sensor_wifi_config.password));
+
+    ESP_RETURN_ERROR(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_RETURN_ERROR(esp_wifi_start());
+    ESP_RETURN_ERROR(esp_wifi_scan_start(&scan_config, true));
+    ESP_RETURN_ERROR(esp_wifi_scan_get_ap_records(&number_of_scanned_ap, ap_info));
+    ESP_RETURN_ERROR(esp_wifi_scan_get_ap_num(&ap_count));
 
     if (ap_count == 0)
     {
@@ -116,13 +125,13 @@ esp_err_t mqtt_sensor_wifi_connect_to_sta(void)
         return status;
     }
 
-    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL));
+    ESP_RETURN_ERROR(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
+    ESP_RETURN_ERROR(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL));
+    ESP_RETURN_ERROR(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL));
 
     esp_wifi_connect();
 
-    ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_RETURN_ERROR(esp_wifi_start());
 
     /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
     EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
@@ -135,22 +144,45 @@ esp_err_t mqtt_sensor_wifi_connect_to_sta(void)
     if (bits & WIFI_CONNECTED_BIT)
     {
         ESP_LOGI(TAG, "connected to ap SSID:%s",
-                 ESP_WIFI_SSID);
+                 mqtt_sensor_wifi_config.ssid);
         status = ESP_OK;
     }
     else if (bits & WIFI_FAIL_BIT)
     {
         ESP_LOGI(TAG, "Failed to connect to SSID:%s",
-                 ESP_WIFI_SSID);
+                 mqtt_sensor_wifi_config.ssid);
     }
     else
     {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
     }
 
-    ESP_ERROR_CHECK(esp_event_handler_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler));
-    ESP_ERROR_CHECK(esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler));
+    ESP_RETURN_ERROR(esp_event_handler_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler));
+    ESP_RETURN_ERROR(esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler));
     vEventGroupDelete(s_wifi_event_group);
 
     return status;
+}
+
+esp_err_t mqtt_sensor_wifi_disconnect_to_sta()
+{
+    nvs_stats_t nvs_stats;
+
+    if (nvs_get_stats(NULL, &nvs_stats) == ESP_ERR_NVS_NOT_INITIALIZED)
+    {
+        ESP_LOGE(TAG, "NVS needs to be initalized!");
+        return ESP_OK;
+    }
+
+    esp_wifi_disconnect();
+    esp_wifi_stop();
+    esp_wifi_deinit();
+    esp_event_loop_delete_default();
+
+    if (handler != NULL)
+    {
+        esp_netif_destroy(handler);
+    }
+
+    return ESP_OK;
 }

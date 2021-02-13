@@ -14,6 +14,7 @@
 #include <mqtt_sensor_bme680.h>
 #include <mqtt_sensor_mqtt.h>
 #include <mqtt_sensor_sntp.h>
+#include <mqtt_sensor_wifi_secret_local.h>
 
 #define WAKEUP_TIME_SEC 10 //!< Time how long the device goes to deep sleep
 
@@ -21,11 +22,17 @@ static const char *TAG = "main";
 
 void app_main(void)
 {
+    mqtt_sensor_wifi_config_t wifi_config = {
+        .ssid = ESP_WIFI_SSID,
+        .password = ESP_WIFI_PASS,
+        .channel = ESP_WIFI_CHANNEL,
+    };
+
     // Code executed when entering app_main
     struct timeval enter_app_main_time;
     struct timeval leave_app_main_time;
     int app_main_duration_ms;
-    esp_log_level_set("*", ESP_LOG_WARN);
+    esp_log_level_set("*", ESP_LOG_INFO);
     gettimeofday(&enter_app_main_time, NULL);
     const int wakeup_time_sec = WAKEUP_TIME_SEC;
     ESP_LOGI(TAG, "Enabling timer wakeup, %d s", wakeup_time_sec);
@@ -53,7 +60,7 @@ void app_main(void)
                      results.pressure, results.gasResistance);
             mqtt_sensor_data_push(&results);
 
-            if (mqtt_sensor_wifi_connect_to_sta() == ESP_OK)
+            if (mqtt_sensor_wifi_connect_to_sta(wifi_config) == ESP_OK)
             {
                 mqtt_sensor_sntp_sync();
 
@@ -77,6 +84,7 @@ void app_main(void)
                     }
                 }
             }
+            mqtt_sensor_wifi_disconnect_to_sta();
         }
     }
 
