@@ -25,7 +25,7 @@ void app_main(void)
     struct timeval enter_app_main_time;
     struct timeval leave_app_main_time;
     int app_main_duration_ms;
-    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("*", ESP_LOG_WARN);
     gettimeofday(&enter_app_main_time, NULL);
     const int wakeup_time_sec = WAKEUP_TIME_SEC;
     ESP_LOGI(TAG, "Enabling timer wakeup, %d s", wakeup_time_sec);
@@ -43,35 +43,38 @@ void app_main(void)
     // Main process
     struct sensor_data results;
 
-    if (mqtt_sensor_bme680_get_results_blocking(&results) == ESP_OK)
+    if (mqtt_sensor_bme680_init() == ESP_OK)
     {
-        ESP_LOGI(TAG, "%.3f BME680 Sensor (push): %.2f °C, %.2f %%, %.2f hPa, %.2f Ohm",
-                 (double)sdk_system_get_time() * 1e-3,
-                 results.temperature, results.humidity,
-                 results.pressure, results.gasResistance);
-        mqtt_sensor_data_push(&results);
-
-        if (mqtt_sensor_wifi_connect_to_sta() == ESP_OK)
+        if (mqtt_sensor_bme680_get_results_blocking(&results) == ESP_OK)
         {
-            mqtt_sensor_sntp_sync();
+            ESP_LOGI(TAG, "%.3f BME680 Sensor (push): %.2f °C, %.2f %%, %.2f hPa, %.2f Ohm",
+                     (double)sdk_system_get_time() * 1e-3,
+                     results.temperature, results.humidity,
+                     results.pressure, results.gasResistance);
+            mqtt_sensor_data_push(&results);
 
-            mqtt_sensor_mqtt_connect();
-
-            uint32_t current_buffer_index = mqtt_sensor_data_count();
-            ESP_LOGI(TAG, "current_buffer_index %d.", current_buffer_index);
-
-            for (uint32_t i = 0; i < current_buffer_index; i++)
+            if (mqtt_sensor_wifi_connect_to_sta() == ESP_OK)
             {
-                mqtt_sensor_data_get_last(&results);
-                if (mqtt_sensor_mqtt_publish(&results) == ESP_OK)
+                mqtt_sensor_sntp_sync();
+
+                mqtt_sensor_mqtt_connect();
+
+                uint32_t current_buffer_index = mqtt_sensor_data_count();
+                ESP_LOGI(TAG, "current_buffer_index %d.", current_buffer_index);
+
+                for (uint32_t i = 0; i < current_buffer_index; i++)
                 {
-                    mqtt_sensor_mqtt_publish(&results);
-                    mqtt_sensor_data_drop();
-                }
-                else
-                {
-                    ESP_LOGI(TAG, "mqtt_sensor_mqtt_publish failed - will retry next iteration.");
-                    break;
+                    mqtt_sensor_data_get_last(&results);
+                    if (mqtt_sensor_mqtt_publish(&results) == ESP_OK)
+                    {
+                        mqtt_sensor_mqtt_publish(&results);
+                        mqtt_sensor_data_drop();
+                    }
+                    else
+                    {
+                        ESP_LOGI(TAG, "mqtt_sensor_mqtt_publish failed - will retry next iteration.");
+                        break;
+                    }
                 }
             }
         }

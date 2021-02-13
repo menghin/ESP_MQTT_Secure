@@ -28,8 +28,8 @@ bool gpio_isr_service_installed = false;
 bool auto_pull_up = false;
 bool auto_pull_down = true;
 
-esp_err_t gpio_set_interrupt(gpio_num_t gpio, 
-                             gpio_int_type_t type, 
+esp_err_t gpio_set_interrupt(gpio_num_t gpio,
+                             gpio_int_type_t type,
                              gpio_interrupt_handler_t handler)
 {
     if (!gpio_isr_service_installed)
@@ -46,7 +46,7 @@ esp_err_t gpio_set_interrupt(gpio_num_t gpio,
 
     // set interrupt handler
     gpio_isr_handler_add(gpio, (gpio_isr_t)handler, (void*)gpio);
-    
+
     return ESP_OK;
 }
 
@@ -79,7 +79,7 @@ void i2c_init (int bus, gpio_num_t scl, gpio_num_t sda, uint32_t freq)
     i2c_driver_install(bus, I2C_MODE_MASTER, 0, 0, 0);
 }
 
-int i2c_slave_write (uint8_t bus, uint8_t addr, const uint8_t *reg, 
+int i2c_slave_write (uint8_t bus, uint8_t addr, const uint8_t *reg,
                      uint8_t *data, uint32_t len)
 {
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
@@ -92,11 +92,11 @@ int i2c_slave_write (uint8_t bus, uint8_t addr, const uint8_t *reg,
     i2c_master_stop(cmd);
     esp_err_t err = i2c_master_cmd_begin(bus, cmd, 1000 / portTICK_RATE_MS);
     i2c_cmd_link_delete(cmd);
-    
+
     return err;
 }
 
-int i2c_slave_read (uint8_t bus, uint8_t addr, const uint8_t *reg, 
+int i2c_slave_read (uint8_t bus, uint8_t addr, const uint8_t *reg,
                     uint8_t *data, uint32_t len)
 {
     if (len == 0) return true;
@@ -147,7 +147,7 @@ bool spi_device_init (uint8_t bus, uint8_t cs)
 {
     if (bus >= SPI_MAX_BUS || cs >= SPI_MAX_CS)
         return false;
-        
+
     if ((spi_handles[cs] = malloc (sizeof(spi_device_handle_t))) == 0)
         return false;
 
@@ -167,7 +167,7 @@ bool spi_device_init (uint8_t bus, uint8_t cs)
         free (spi_handles[cs]);
         return false;
     }
-    
+
     return true;
 }
 
@@ -182,7 +182,7 @@ size_t spi_transfer_pf (uint8_t bus, uint8_t cs, const uint8_t *mosi, uint8_t *m
     spi_trans.tx_buffer = mosi;
     spi_trans.rx_buffer = miso;
     spi_trans.length=len*8;
-    
+
     if (spi_device_transmit(spi_handles[cs], &spi_trans) != ESP_OK)
         return 0;
 

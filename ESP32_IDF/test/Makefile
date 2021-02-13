@@ -12,6 +12,6 @@ EXTRA_COMPONENT_DIRS := $(realpath ../components)
 # This can be overriden from the command line
 # (e.g. 'make TEST_COMPONENTS=xxxx flash monitor')
 #
-TEST_COMPONENTS ?= mqtt_sensor_data
+TEST_COMPONENTS ?= mqtt_sensor_data mqtt_sensor_bme680
 
 include $(IDF_PATH)/make/project.mk

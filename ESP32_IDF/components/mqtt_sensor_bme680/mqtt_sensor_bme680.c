@@ -22,7 +22,7 @@ static bme680_sensor_t *sensor = (bme680_sensor_t *)SENSOR_INSTANCE_START_ADDR;
 
 static const char *TAG = "mqtt_sensor_bme680";
 
-static esp_err_t mqtt_sensor_bme680_init(void)
+esp_err_t mqtt_sensor_bme680_init(void)
 {
     esp_err_t status = ESP_FAIL;
 
@@ -79,33 +79,30 @@ esp_err_t mqtt_sensor_bme680_get_results_blocking(struct sensor_data *results)
     esp_err_t status = ESP_FAIL;
     bme680_values_float_t bme680_result;
 
-    if (mqtt_sensor_bme680_init() == ESP_OK)
+    // trigger the sensor to start one TPHG measurement cycle
+    if (bme680_force_measurement(sensor))
     {
-        // trigger the sensor to start one TPHG measurement cycle
-        if (bme680_force_measurement(sensor))
+        // as long as sensor configuration isn't changed, duration is constant
+        uint32_t duration = bme680_get_measurement_duration(sensor);
+
+        // passive waiting until measurement results are available
+        vTaskDelay(duration);
+
+        // get the results and do something with them
+        if (bme680_get_results_float(sensor, &bme680_result))
         {
-            // as long as sensor configuration isn't changed, duration is constant
-            uint32_t duration = bme680_get_measurement_duration(sensor);
+            results->temperature = bme680_result.temperature;
+            results->humidity = bme680_result.humidity;
+            results->pressure = bme680_result.pressure;
+            results->gasResistance = bme680_result.gas_resistance;
+            time(&(results->timestamp));
 
-            // passive waiting until measurement results are available
-            vTaskDelay(duration);
-
-            // get the results and do something with them
-            if (bme680_get_results_float(sensor, &bme680_result))
-            {
-                results->temperature = bme680_result.temperature;
-                results->humidity = bme680_result.humidity;
-                results->pressure = bme680_result.pressure;
-                results->gasResistance = bme680_result.gas_resistance;
-                time(&(results->timestamp));
-
-                status = ESP_OK;
-            }
+            status = ESP_OK;
         }
-        else
-        {
-            ESP_LOGE(TAG, "Could not get sensor data from BME680 sensor");
-        }
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Could not get sensor data from BME680 sensor");
     }
 
     return status;
