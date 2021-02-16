@@ -23,7 +23,7 @@
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
 
-/* Craeted netif handler when connecting*/
+/* Created netif handler when connecting*/
 static esp_netif_t *handler = NULL;
 
 /* The event group allows multiple bits for each event, but we only care about two events:

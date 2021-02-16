@@ -10,7 +10,7 @@ set(EXTRA_COMPONENT_DIRS "../components")
 # - when invoking CMake directly: cmake -D TEST_COMPONENTS="xxxxx" ..
 # - when using idf.py: idf.py -T xxxxx build
 #
-set(TEST_COMPONENTS "mqtt_sensor_data mqtt_sensor_bme680 mqtt_sensor_wifi" CACHE STRING "List of components to test")
+set(TEST_COMPONENTS "mqtt_sensor_data mqtt_sensor_bme680 mqtt_sensor_wifi mqtt_sensor_mqtt" CACHE STRING "List of components to test")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(mqtt_sensor_test)

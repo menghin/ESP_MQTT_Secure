@@ -16,9 +16,11 @@ extern "C"
 #endif
 
 #include "esp_err.h"
+#include "mqtt_client.h"
 #include <mqtt_sensor_data.h>
 
-    esp_err_t mqtt_sensor_mqtt_connect(void);
+    esp_err_t mqtt_sensor_mqtt_connect(esp_mqtt_client_config_t mqtt_cfg, char *mqtt_pub_topic);
+    esp_err_t mqtt_sensor_mqtt_disconnect(void);
     esp_err_t mqtt_sensor_mqtt_publish(struct sensor_data *results);
 
 #ifdef __cplusplus

@@ -5,29 +5,12 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include <esp_log.h>
-#include "mqtt_client.h"
 #include "esp_tls.h"
 #include "cJSON.h"
 
 #include <mqtt_sensor_mqtt.h>
 
-#define USE_SECRET_LOCAL
-
-#ifdef USE_SECRET_LOCAL
-#include "mqtt_sensor_mqtt_secret_local.h"
-#else
-#define LOCATION "location"
-#define HOSTNAME LOCATION "hostname"
-
-const char *MQTT_URI = "URI";
-const char *MQTT_USER = "user";    // leave blank if no credentials used
-const char *MQTT_PASS = "pasword"; // leave blank if no credentials used
-
-const char *local_root_ca = "-----BEGIN CERTIFICATE-----\n"
-#endif
-
-const char MQTT_SUB_TOPIC[] = LOCATION "/" HOSTNAME "/in";
-const char MQTT_PUB_TOPIC[] = LOCATION "/" HOSTNAME "/out";
+static char *mqtt_pub_topic_to_subscribe;
 
 static const char *TAG = "mqtt_sensor_mqtt";
 
@@ -54,7 +37,7 @@ static esp_err_t mqtt_sensor_mqtt_event_handler_cb(esp_mqtt_event_handle_t event
     {
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-        msg_id = esp_mqtt_client_subscribe(client, MQTT_PUB_TOPIC, 0);
+        msg_id = esp_mqtt_client_subscribe(client, mqtt_pub_topic_to_subscribe, 0);
         ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
         break;
     case MQTT_EVENT_DISCONNECTED:
@@ -105,36 +88,42 @@ static void mqtt_sensor_mqtt_event_handler(void *handler_args, esp_event_base_t 
     mqtt_sensor_mqtt_event_handler_cb(event_data);
 }
 
-esp_err_t mqtt_sensor_mqtt_connect(void)
+esp_err_t mqtt_sensor_mqtt_connect(esp_mqtt_client_config_t mqtt_cfg, char *mqtt_pub_topic)
 {
     esp_err_t status = ESP_FAIL;
 
-    s_mqtt_event_group = xEventGroupCreate();
+    mqtt_pub_topic_to_subscribe = mqtt_pub_topic;
 
-    const esp_mqtt_client_config_t mqtt_cfg = {
-        .uri = MQTT_URI,
-        //.cert_pem = local_root_ca,
-        .username = MQTT_USER,
-        .password = MQTT_PASS};
+    s_mqtt_event_group = xEventGroupCreate();
 
     client = esp_mqtt_client_init(&mqtt_cfg);
     if (esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_sensor_mqtt_event_handler, client) == ESP_OK)
     {
-        status = esp_mqtt_client_start(client);
-
-        /* Waiting until either the connection is established (MQTT_CONNECTED_BIT) or connection failed (MQTT_ERROR_BIT). The bits are set by event_handler() (see above) */
-        EventBits_t bits = xEventGroupWaitBits(s_mqtt_event_group,
-                                               MQTT_CONNECTED_BIT | MQTT_ERROR_BIT,
-                                               pdFALSE,
-                                               pdFALSE,
-                                               100000);
-
-        /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually happened. */
-        if (bits & MQTT_CONNECTED_BIT)
+        if (esp_mqtt_client_start(client) == ESP_OK)
         {
-            status = ESP_OK;
+            /* Waiting until either the connection is established (MQTT_CONNECTED_BIT) or connection failed (MQTT_ERROR_BIT). The bits are set by event_handler() (see above) */
+            EventBits_t bits = xEventGroupWaitBits(s_mqtt_event_group,
+                                                   MQTT_CONNECTED_BIT | MQTT_ERROR_BIT,
+                                                   pdFALSE,
+                                                   pdFALSE,
+                                                   150000);
+
+            /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually happened. */
+            if (bits & MQTT_CONNECTED_BIT)
+            {
+                status = ESP_OK;
+            }
         }
     }
+
+    return status;
+}
+
+esp_err_t mqtt_sensor_mqtt_disconnect(void)
+{
+    esp_err_t status = ESP_OK;
+
+    esp_mqtt_client_destroy(client);
 
     return status;
 }
@@ -142,6 +131,11 @@ esp_err_t mqtt_sensor_mqtt_connect(void)
 esp_err_t mqtt_sensor_mqtt_publish(struct sensor_data *results)
 {
     esp_err_t status = ESP_FAIL;
+
+    if (results == NULL)
+    {
+        return status;
+    }
 
     cJSON *root = cJSON_CreateObject();
     cJSON_AddNumberToObject(root, "timestamp", results->timestamp);
@@ -151,7 +145,7 @@ esp_err_t mqtt_sensor_mqtt_publish(struct sensor_data *results)
     cJSON_AddNumberToObject(root, "gasResistance", results->gasResistance);
     const char *payload = cJSON_Print(root);
 
-    if (esp_mqtt_client_publish(client, MQTT_PUB_TOPIC, payload, 0, 0, 0) != -1)
+    if (esp_mqtt_client_publish(client, mqtt_pub_topic_to_subscribe, payload, 0, 0, 0) != -1)
     {
         ESP_LOGI(TAG, "sent publish successful");
 
@@ -160,7 +154,7 @@ esp_err_t mqtt_sensor_mqtt_publish(struct sensor_data *results)
                                                MQTT_PUBLISHED_BIT | MQTT_ERROR_BIT,
                                                pdFALSE,
                                                pdFALSE,
-                                               100000);
+                                               150000);
 
         /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually happened. */
         if (bits & MQTT_PUBLISHED_BIT)

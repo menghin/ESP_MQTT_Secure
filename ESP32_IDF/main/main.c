@@ -14,9 +14,30 @@
 #include <mqtt_sensor_bme680.h>
 #include <mqtt_sensor_mqtt.h>
 #include <mqtt_sensor_sntp.h>
-#include <mqtt_sensor_wifi_secret_local.h>
 
-#define WAKEUP_TIME_SEC 10 //!< Time how long the device goes to deep sleep
+#define USE_SECRET_LOCAL
+
+#ifdef USE_SECRET_LOCAL
+#include "mqtt_sensor_wifi_secret_local.h"
+#include "mqtt_sensor_mqtt_secret_local.h"
+#else
+/* Used WIFI SSID*/
+#define ESP_WIFI_SSID "WIFI_SSID"
+/* Used WIFI password*/
+#define ESP_WIFI_PASS "WIFI_PASS"
+/* Used WIFI Channel*/
+#define ESP_WIFI_CHANNEL 0
+
+#define LOCATION "location"
+#define HOSTNAME LOCATION "hostname"
+
+const char *MQTT_URI = "URI";
+const char *MQTT_USER = "user";    // leave blank if no credentials used
+const char *MQTT_PASS = "pasword"; // leave blank if no credentials used
+
+#endif
+
+#define WAKEUP_TIME_SEC 120 //!< Time how long the device goes to deep sleep
 
 static const char *TAG = "main";
 
@@ -25,14 +46,20 @@ void app_main(void)
     mqtt_sensor_wifi_config_t wifi_config = {
         .ssid = ESP_WIFI_SSID,
         .password = ESP_WIFI_PASS,
-        .channel = ESP_WIFI_CHANNEL,
-    };
+        .channel = ESP_WIFI_CHANNEL};
+
+    const esp_mqtt_client_config_t mqtt_cfg = {
+        .uri = MQTT_URI,
+        .username = MQTT_USER,
+        .password = MQTT_PASS};
+
+    char *mqtt_pub_topic = LOCATION "/" HOSTNAME "/out";
 
     // Code executed when entering app_main
     struct timeval enter_app_main_time;
     struct timeval leave_app_main_time;
     int app_main_duration_ms;
-    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("*", ESP_LOG_WARN);
     gettimeofday(&enter_app_main_time, NULL);
     const int wakeup_time_sec = WAKEUP_TIME_SEC;
     ESP_LOGI(TAG, "Enabling timer wakeup, %d s", wakeup_time_sec);
@@ -64,25 +91,26 @@ void app_main(void)
             {
                 mqtt_sensor_sntp_sync();
 
-                mqtt_sensor_mqtt_connect();
-
-                uint32_t current_buffer_index = mqtt_sensor_data_count();
-                ESP_LOGI(TAG, "current_buffer_index %d.", current_buffer_index);
-
-                for (uint32_t i = 0; i < current_buffer_index; i++)
+                if (mqtt_sensor_mqtt_connect(mqtt_cfg, mqtt_pub_topic) == ESP_OK)
                 {
-                    mqtt_sensor_data_get_last(&results);
-                    if (mqtt_sensor_mqtt_publish(&results) == ESP_OK)
+                    uint32_t current_buffer_index = mqtt_sensor_data_count();
+                    ESP_LOGI(TAG, "current_buffer_index %d.", current_buffer_index);
+
+                    for (uint32_t i = 0; i < current_buffer_index; i++)
                     {
-                        mqtt_sensor_mqtt_publish(&results);
-                        mqtt_sensor_data_drop();
-                    }
-                    else
-                    {
-                        ESP_LOGI(TAG, "mqtt_sensor_mqtt_publish failed - will retry next iteration.");
-                        break;
+                        mqtt_sensor_data_get_last(&results);
+                        if (mqtt_sensor_mqtt_publish(&results) == ESP_OK)
+                        {
+                            mqtt_sensor_data_drop();
+                        }
+                        else
+                        {
+                            ESP_LOGI(TAG, "mqtt_sensor_mqtt_publish failed - will retry next iteration.");
+                            break;
+                        }
                     }
                 }
+                mqtt_sensor_mqtt_disconnect();
             }
             mqtt_sensor_wifi_disconnect_to_sta();
         }
