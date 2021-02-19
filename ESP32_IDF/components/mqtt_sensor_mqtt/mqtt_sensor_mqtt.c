@@ -10,7 +10,8 @@
 
 #include <mqtt_sensor_mqtt.h>
 
-static char *mqtt_pub_topic_to_subscribe;
+static char *mqtt_pub_topic_result_to_subscribe;
+static char *mqtt_pub_topic_message_to_subscribe;
 
 static const char *TAG = "mqtt_sensor_mqtt";
 
@@ -37,7 +38,9 @@ static esp_err_t mqtt_sensor_mqtt_event_handler_cb(esp_mqtt_event_handle_t event
     {
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-        msg_id = esp_mqtt_client_subscribe(client, mqtt_pub_topic_to_subscribe, 0);
+        msg_id = esp_mqtt_client_subscribe(client, mqtt_pub_topic_result_to_subscribe, 0);
+        ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
+        msg_id = esp_mqtt_client_subscribe(client, mqtt_pub_topic_message_to_subscribe, 0);
         ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
         break;
     case MQTT_EVENT_DISCONNECTED:
@@ -88,11 +91,12 @@ static void mqtt_sensor_mqtt_event_handler(void *handler_args, esp_event_base_t 
     mqtt_sensor_mqtt_event_handler_cb(event_data);
 }
 
-esp_err_t mqtt_sensor_mqtt_connect(esp_mqtt_client_config_t mqtt_cfg, char *mqtt_pub_topic)
+esp_err_t mqtt_sensor_mqtt_connect(esp_mqtt_client_config_t mqtt_cfg, char *mqtt_pub_topic_result, char *mqtt_pub_topic_message)
 {
     esp_err_t status = ESP_FAIL;
 
-    mqtt_pub_topic_to_subscribe = mqtt_pub_topic;
+    mqtt_pub_topic_result_to_subscribe = mqtt_pub_topic_result;
+    mqtt_pub_topic_message_to_subscribe = mqtt_pub_topic_message;
 
     s_mqtt_event_group = xEventGroupCreate();
 
@@ -128,7 +132,7 @@ esp_err_t mqtt_sensor_mqtt_disconnect(void)
     return status;
 }
 
-esp_err_t mqtt_sensor_mqtt_publish(struct sensor_data *results)
+esp_err_t mqtt_sensor_mqtt_publish_result(struct sensor_data *results)
 {
     esp_err_t status = ESP_FAIL;
 
@@ -145,7 +149,45 @@ esp_err_t mqtt_sensor_mqtt_publish(struct sensor_data *results)
     cJSON_AddNumberToObject(root, "gasResistance", results->gasResistance);
     const char *payload = cJSON_Print(root);
 
-    if (esp_mqtt_client_publish(client, mqtt_pub_topic_to_subscribe, payload, 0, 0, 0) != -1)
+    if (esp_mqtt_client_publish(client, mqtt_pub_topic_result_to_subscribe, payload, 0, 0, 0) != -1)
+    {
+        ESP_LOGI(TAG, "sent publish successful");
+
+        /* Waiting until either the message was published (MQTT_PUBLISHED_BIT) or connection failed (MQTT_ERROR_BIT). The bits are set by event_handler() (see above) */
+        EventBits_t bits = xEventGroupWaitBits(s_mqtt_event_group,
+                                               MQTT_PUBLISHED_BIT | MQTT_ERROR_BIT,
+                                               pdFALSE,
+                                               pdFALSE,
+                                               150000);
+
+        /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually happened. */
+        if (bits & MQTT_PUBLISHED_BIT)
+        {
+            status = ESP_OK;
+        }
+    }
+
+    return status;
+}
+
+esp_err_t mqtt_sensor_mqtt_publish_message(char *message)
+{
+    esp_err_t status = ESP_FAIL;
+    time_t now;
+
+    if (message == NULL)
+    {
+        return status;
+    }
+
+    time(&now);
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "message", message);
+    cJSON_AddNumberToObject(root, "timestamp", now);
+    const char *payload = cJSON_Print(root);
+
+    if (esp_mqtt_client_publish(client, mqtt_pub_topic_message_to_subscribe, payload, 0, 0, 0) != -1)
     {
         ESP_LOGI(TAG, "sent publish successful");
 

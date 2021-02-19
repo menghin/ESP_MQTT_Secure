@@ -50,7 +50,8 @@ TEST_CASE("mqtt_sensor_mqtt_connect is able to connect", "[mqtt_sensor_mqtt]")
         .username = MQTT_USER,
         .password = MQTT_PASS};
 
-    char *mqtt_pub_topic = LOCATION "/" HOSTNAME "/out";
+    char *mqtt_pub_topic_result = LOCATION "/" HOSTNAME "/out/result";
+    char *mqtt_pub_topic_message = LOCATION "/" HOSTNAME "/out/message";
 
     // Initialize NVS
     esp_err_t ret = nvs_flash_init();
@@ -63,7 +64,7 @@ TEST_CASE("mqtt_sensor_mqtt_connect is able to connect", "[mqtt_sensor_mqtt]")
 
     TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_wifi_connect_to_sta(wifi_config));
 
-    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_connect(mqtt_cfg, mqtt_pub_topic));
+    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_connect(mqtt_cfg, mqtt_pub_topic_result, mqtt_pub_topic_message));
 
     TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_disconnect());
 
@@ -85,7 +86,8 @@ TEST_CASE("mqtt_sensor_mqtt_connect wrong uri", "[mqtt_sensor_mqtt]")
         .username = MQTT_USER,
         .password = MQTT_PASS};
 
-    char *mqtt_pub_topic = LOCATION "/" HOSTNAME "/out";
+    char *mqtt_pub_topic_result = LOCATION "/" HOSTNAME "/out/result";
+    char *mqtt_pub_topic_message = LOCATION "/" HOSTNAME "/out/message";
 
     // Initialize NVS
     esp_err_t ret = nvs_flash_init();
@@ -98,7 +100,7 @@ TEST_CASE("mqtt_sensor_mqtt_connect wrong uri", "[mqtt_sensor_mqtt]")
 
     TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_wifi_connect_to_sta(wifi_config));
 
-    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_mqtt_connect(mqtt_cfg, mqtt_pub_topic));
+    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_mqtt_connect(mqtt_cfg, mqtt_pub_topic_result, mqtt_pub_topic_message));
 
     TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_disconnect());
 
@@ -120,7 +122,8 @@ TEST_CASE("mqtt_sensor_mqtt_connect wrong user", "[mqtt_sensor_mqtt]")
         .username = "wrongUser",
         .password = MQTT_PASS};
 
-    char *mqtt_pub_topic = LOCATION "/" HOSTNAME "/out";
+    char *mqtt_pub_topic_result = LOCATION "/" HOSTNAME "/out/result";
+    char *mqtt_pub_topic_message = LOCATION "/" HOSTNAME "/out/message";
 
     // Initialize NVS
     esp_err_t ret = nvs_flash_init();
@@ -133,7 +136,7 @@ TEST_CASE("mqtt_sensor_mqtt_connect wrong user", "[mqtt_sensor_mqtt]")
 
     TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_wifi_connect_to_sta(wifi_config));
 
-    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_mqtt_connect(mqtt_cfg, mqtt_pub_topic));
+    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_mqtt_connect(mqtt_cfg, mqtt_pub_topic_result, mqtt_pub_topic_message));
 
     TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_disconnect());
 
@@ -155,7 +158,8 @@ TEST_CASE("mqtt_sensor_mqtt_connect wrong password", "[mqtt_sensor_mqtt]")
         .username = MQTT_USER,
         .password = "wrongPassword"};
 
-    char *mqtt_pub_topic = LOCATION "/" HOSTNAME "/out";
+    char *mqtt_pub_topic_result = LOCATION "/" HOSTNAME "/out/result";
+    char *mqtt_pub_topic_message = LOCATION "/" HOSTNAME "/out/message";
 
     // Initialize NVS
     esp_err_t ret = nvs_flash_init();
@@ -168,7 +172,7 @@ TEST_CASE("mqtt_sensor_mqtt_connect wrong password", "[mqtt_sensor_mqtt]")
 
     TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_wifi_connect_to_sta(wifi_config));
 
-    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_mqtt_connect(mqtt_cfg, mqtt_pub_topic));
+    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_mqtt_connect(mqtt_cfg, mqtt_pub_topic_result, mqtt_pub_topic_message));
 
     TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_disconnect());
 
@@ -177,7 +181,7 @@ TEST_CASE("mqtt_sensor_mqtt_connect wrong password", "[mqtt_sensor_mqtt]")
     TEST_ASSERT_EQUAL(ESP_OK, nvs_flash_deinit());
 }
 
-TEST_CASE("mqtt_sensor_mqtt_publish", "[mqtt_sensor_mqtt]")
+TEST_CASE("mqtt_sensor_mqtt_publish_result", "[mqtt_sensor_mqtt]")
 {
     mqtt_sensor_wifi_config_t wifi_config = {
         .ssid = ESP_WIFI_SSID,
@@ -190,7 +194,8 @@ TEST_CASE("mqtt_sensor_mqtt_publish", "[mqtt_sensor_mqtt]")
         .username = MQTT_USER,
         .password = MQTT_PASS};
 
-    char *mqtt_pub_topic = LOCATION "/" HOSTNAME "/out";
+    char *mqtt_pub_topic_result = LOCATION "/" HOSTNAME "/out/result";
+    char *mqtt_pub_topic_message = LOCATION "/" HOSTNAME "/out/message";
 
     struct sensor_data results;
 
@@ -205,9 +210,9 @@ TEST_CASE("mqtt_sensor_mqtt_publish", "[mqtt_sensor_mqtt]")
 
     TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_wifi_connect_to_sta(wifi_config));
 
-    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_connect(mqtt_cfg, mqtt_pub_topic));
+    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_connect(mqtt_cfg, mqtt_pub_topic_result, mqtt_pub_topic_message));
 
-    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_publish(&results));
+    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_publish_result(&results));
 
     TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_disconnect());
 
@@ -216,7 +221,7 @@ TEST_CASE("mqtt_sensor_mqtt_publish", "[mqtt_sensor_mqtt]")
     TEST_ASSERT_EQUAL(ESP_OK, nvs_flash_deinit());
 }
 
-TEST_CASE("mqtt_sensor_mqtt_publish invalid input data", "[mqtt_sensor_mqtt]")
+TEST_CASE("mqtt_sensor_mqtt_publish_result invalid input data", "[mqtt_sensor_mqtt]")
 {
     mqtt_sensor_wifi_config_t wifi_config = {
         .ssid = ESP_WIFI_SSID,
@@ -229,7 +234,8 @@ TEST_CASE("mqtt_sensor_mqtt_publish invalid input data", "[mqtt_sensor_mqtt]")
         .username = MQTT_USER,
         .password = MQTT_PASS};
 
-    char *mqtt_pub_topic = LOCATION "/" HOSTNAME "/out";
+    char *mqtt_pub_topic_result = LOCATION "/" HOSTNAME "/out/result";
+    char *mqtt_pub_topic_message = LOCATION "/" HOSTNAME "/out/message";
 
     struct sensor_data results;
 
@@ -244,12 +250,12 @@ TEST_CASE("mqtt_sensor_mqtt_publish invalid input data", "[mqtt_sensor_mqtt]")
 
     TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_wifi_connect_to_sta(wifi_config));
 
-    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_connect(mqtt_cfg, mqtt_pub_topic));
+    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_connect(mqtt_cfg, mqtt_pub_topic_result, mqtt_pub_topic_message));
 
     for (int i = 0; i < 50; i++)
     {
         esp_fill_random((void *)&results, sizeof(struct sensor_data));
-        mqtt_sensor_mqtt_publish(&results);
+        mqtt_sensor_mqtt_publish_result(&results);
     }
 
     TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_disconnect());
@@ -259,7 +265,7 @@ TEST_CASE("mqtt_sensor_mqtt_publish invalid input data", "[mqtt_sensor_mqtt]")
     TEST_ASSERT_EQUAL(ESP_OK, nvs_flash_deinit());
 }
 
-TEST_CASE("mqtt_sensor_mqtt_publish input data pointer is NULL", "[mqtt_sensor_mqtt]")
+TEST_CASE("mqtt_sensor_mqtt_publish_result input data pointer is NULL", "[mqtt_sensor_mqtt]")
 {
     mqtt_sensor_wifi_config_t wifi_config = {
         .ssid = ESP_WIFI_SSID,
@@ -272,7 +278,8 @@ TEST_CASE("mqtt_sensor_mqtt_publish input data pointer is NULL", "[mqtt_sensor_m
         .username = MQTT_USER,
         .password = MQTT_PASS};
 
-    char *mqtt_pub_topic = LOCATION "/" HOSTNAME "/out";
+    char *mqtt_pub_topic_result = LOCATION "/" HOSTNAME "/out/result";
+    char *mqtt_pub_topic_message = LOCATION "/" HOSTNAME "/out/message";
 
     // Initialize NVS
     esp_err_t ret = nvs_flash_init();
@@ -285,9 +292,87 @@ TEST_CASE("mqtt_sensor_mqtt_publish input data pointer is NULL", "[mqtt_sensor_m
 
     TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_wifi_connect_to_sta(wifi_config));
 
-    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_connect(mqtt_cfg, mqtt_pub_topic));
+    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_connect(mqtt_cfg, mqtt_pub_topic_result, mqtt_pub_topic_message));
 
-    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_mqtt_publish(NULL));
+    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_mqtt_publish_result(NULL));
+
+    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_disconnect());
+
+    mqtt_sensor_wifi_disconnect_to_sta();
+
+    TEST_ASSERT_EQUAL(ESP_OK, nvs_flash_deinit());
+}
+
+TEST_CASE("mqtt_sensor_mqtt_publish_message", "[mqtt_sensor_mqtt]")
+{
+    mqtt_sensor_wifi_config_t wifi_config = {
+        .ssid = ESP_WIFI_SSID,
+        .password = ESP_WIFI_PASS,
+        .channel = ESP_WIFI_CHANNEL,
+    };
+
+    const esp_mqtt_client_config_t mqtt_cfg = {
+        .uri = MQTT_URI,
+        .username = MQTT_USER,
+        .password = MQTT_PASS};
+
+    char *mqtt_pub_topic_result = LOCATION "/" HOSTNAME "/out/result";
+    char *mqtt_pub_topic_message = LOCATION "/" HOSTNAME "/out/message";
+
+    char *message = "The test message";
+
+    // Initialize NVS
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        TEST_ASSERT_EQUAL(ESP_OK, nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    TEST_ASSERT_EQUAL(ESP_OK, ret);
+
+    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_wifi_connect_to_sta(wifi_config));
+
+    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_connect(mqtt_cfg, mqtt_pub_topic_result, mqtt_pub_topic_message));
+
+    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_publish_message(message));
+
+    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_disconnect());
+
+    mqtt_sensor_wifi_disconnect_to_sta();
+
+    TEST_ASSERT_EQUAL(ESP_OK, nvs_flash_deinit());
+}
+
+TEST_CASE("mqtt_sensor_mqtt_publish_result input data pointer is NULL", "[mqtt_sensor_mqtt]")
+{
+    mqtt_sensor_wifi_config_t wifi_config = {
+        .ssid = ESP_WIFI_SSID,
+        .password = ESP_WIFI_PASS,
+        .channel = ESP_WIFI_CHANNEL,
+    };
+
+    const esp_mqtt_client_config_t mqtt_cfg = {
+        .uri = MQTT_URI,
+        .username = MQTT_USER,
+        .password = MQTT_PASS};
+
+    char *mqtt_pub_topic_result = LOCATION "/" HOSTNAME "/out/result";
+    char *mqtt_pub_topic_message = LOCATION "/" HOSTNAME "/out/message";
+
+    // Initialize NVS
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        TEST_ASSERT_EQUAL(ESP_OK, nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    TEST_ASSERT_EQUAL(ESP_OK, ret);
+
+    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_wifi_connect_to_sta(wifi_config));
+
+    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_connect(mqtt_cfg, mqtt_pub_topic_result, mqtt_pub_topic_message));
+
+    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_mqtt_publish_message(NULL));
 
     TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_disconnect());
 

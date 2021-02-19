@@ -17,7 +17,7 @@ static uint32_t *one_time_init = (uint32_t *)ONE_TIME_INIT_ADDR;
 // Address 0x50000008 is reserved for one time init of SNTP_SYNC_COUNTER
 // Address 0x5000000C is reserved for one time init of DATA
 
-#define SENSOR_INSTANCE_START_ADDR ((uint32_t *)0x50000010)
+#define SENSOR_INSTANCE_START_ADDR ((uint32_t *)0x50000018)
 static bme680_sensor_t *sensor = (bme680_sensor_t *)SENSOR_INSTANCE_START_ADDR;
 
 static const char *TAG = "mqtt_sensor_bme680";
