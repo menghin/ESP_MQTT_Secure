@@ -19,7 +19,7 @@ extern "C"
 #include "mqtt_client.h"
 #include <mqtt_sensor_data.h>
 
-    esp_err_t mqtt_sensor_mqtt_connect(esp_mqtt_client_config_t mqtt_cfg, char *mqtt_pub_topic_result, char *mqtt_pub_topic_message);
+    esp_err_t mqtt_sensor_mqtt_connect(esp_mqtt_client_config_t *mqtt_cfg, char *mqtt_pub_topic);
     esp_err_t mqtt_sensor_mqtt_disconnect(void);
     esp_err_t mqtt_sensor_mqtt_publish_result(struct sensor_data *results);
     esp_err_t mqtt_sensor_mqtt_publish_message(char *message);

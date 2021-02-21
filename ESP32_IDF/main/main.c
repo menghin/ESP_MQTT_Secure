@@ -41,12 +41,6 @@ const char *MQTT_PASS = "pasword"; // leave blank if no credentials used
 
 static const char *TAG = "main";
 
-#define ONE_TIME_INIT_ADDR ((uint32_t *)0x50000010)
-#define ONE_TIME_INIT_MAGIC_WORD 0xBABABABA
-static uint32_t *one_time_init = (uint32_t *)ONE_TIME_INIT_ADDR;
-#define ALIVE_COUNT_ADDR ((uint32_t *)0x50000014)
-static uint32_t *alive_count = (uint32_t *)ALIVE_COUNT_ADDR;
-
 void app_main(void)
 {
     mqtt_sensor_wifi_config_t wifi_config = {
@@ -54,13 +48,12 @@ void app_main(void)
         .password = ESP_WIFI_PASS,
         .channel = ESP_WIFI_CHANNEL};
 
-    const esp_mqtt_client_config_t mqtt_cfg = {
+    esp_mqtt_client_config_t mqtt_cfg = {
         .uri = MQTT_URI,
         .username = MQTT_USER,
         .password = MQTT_PASS};
 
-    char *mqtt_pub_topic_result = LOCATION "/" HOSTNAME "/out/result";
-    char *mqtt_pub_topic_message = LOCATION "/" HOSTNAME "/out/message";
+    char *mqtt_pub_topic = LOCATION "/" HOSTNAME "/out";
 
     // Code executed when entering app_main
     struct timeval enter_app_main_time;
@@ -71,16 +64,6 @@ void app_main(void)
     const int wakeup_time_sec = WAKEUP_TIME_SEC;
     ESP_LOGI(TAG, "Enabling timer wakeup, %d s", wakeup_time_sec);
     esp_sleep_enable_timer_wakeup(wakeup_time_sec * 1000000);
-
-    if (*one_time_init != ONE_TIME_INIT_MAGIC_WORD)
-    {
-        *one_time_init = ONE_TIME_INIT_MAGIC_WORD;
-        *alive_count = 0;
-    }
-    else
-    {
-        (*alive_count)++;
-    }
 
     // Initialize NVS
     esp_err_t ret = nvs_flash_init();
@@ -104,14 +87,20 @@ void app_main(void)
                      results.pressure, results.gasResistance);
             mqtt_sensor_data_push(&results);
 
-            if (mqtt_sensor_wifi_connect_to_sta(wifi_config) == ESP_OK)
+            if (mqtt_sensor_wifi_connect_to_sta(&wifi_config) == ESP_OK)
             {
                 mqtt_sensor_sntp_sync();
 
-                if (mqtt_sensor_mqtt_connect(mqtt_cfg, mqtt_pub_topic_result, mqtt_pub_topic_message) == ESP_OK)
+                if (mqtt_sensor_mqtt_connect(&mqtt_cfg, mqtt_pub_topic) == ESP_OK)
                 {
                     uint32_t current_buffer_index = mqtt_sensor_data_count();
                     ESP_LOGI(TAG, "current_buffer_index %d.", current_buffer_index);
+
+                    // Transmit only 50 results to avoid big delays in acquiring the sensor data
+                    if (current_buffer_index > 50)
+                    {
+                        current_buffer_index = 50;
+                    }
 
                     for (uint32_t i = 0; i < current_buffer_index; i++)
                     {
@@ -123,12 +112,7 @@ void app_main(void)
                         else
                         {
                             ESP_LOGI(TAG, "mqtt_sensor_mqtt_publish failed - will retry next iteration.");
-                            break;
                         }
-
-                        char value_str[32] = {0};
-                        sprintf(value_str, "alive_count = %d", *alive_count);
-                        mqtt_sensor_mqtt_publish_message(value_str);
                     }
                 }
                 mqtt_sensor_mqtt_disconnect();

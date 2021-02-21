@@ -99,10 +99,14 @@ esp_err_t mqtt_sensor_bme680_get_results_blocking(struct sensor_data *results)
 
             status = ESP_OK;
         }
+        else
+        {
+            ESP_LOGE(TAG, "Could not get sensor data from BME680 sensor");
+        }
     }
     else
     {
-        ESP_LOGE(TAG, "Could not get sensor data from BME680 sensor");
+        ESP_LOGE(TAG, "Could not start sensor data measurement from BME680 sensor");
     }
 
     return status;

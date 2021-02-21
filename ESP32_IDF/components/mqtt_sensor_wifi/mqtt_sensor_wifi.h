@@ -26,7 +26,7 @@ extern "C"
     } mqtt_sensor_wifi_config_t;
 
     esp_err_t mqtt_sensor_wifi_disconnect_to_sta(void);
-    esp_err_t mqtt_sensor_wifi_connect_to_sta(mqtt_sensor_wifi_config_t wifi_config);
+    esp_err_t mqtt_sensor_wifi_connect_to_sta(mqtt_sensor_wifi_config_t *wifi_config);
 
 #ifdef __cplusplus
 }

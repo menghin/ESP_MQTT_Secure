@@ -44,7 +44,7 @@ TEST_CASE("mqtt_sensor_wifi_connect_to_sta is able to connect", "[mqtt_sensor_wi
     }
     TEST_ASSERT_EQUAL(ESP_OK, ret);
 
-    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_wifi_connect_to_sta(wifi_config));
+    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_wifi_connect_to_sta(&wifi_config));
 
     mqtt_sensor_wifi_disconnect_to_sta();
 
@@ -59,7 +59,7 @@ TEST_CASE("mqtt_sensor_wifi_connect_to_sta NVS is not initalized", "[mqtt_sensor
         .channel = ESP_WIFI_CHANNEL,
     };
 
-    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_wifi_connect_to_sta(wifi_config));
+    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_wifi_connect_to_sta(&wifi_config));
 
     mqtt_sensor_wifi_disconnect_to_sta();
 }
@@ -81,11 +81,11 @@ TEST_CASE("mqtt_sensor_wifi_connect_to_sta is able to reconnect", "[mqtt_sensor_
     }
     TEST_ASSERT_EQUAL(ESP_OK, ret);
 
-    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_wifi_connect_to_sta(wifi_config));
+    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_wifi_connect_to_sta(&wifi_config));
 
     mqtt_sensor_wifi_disconnect_to_sta();
 
-    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_wifi_connect_to_sta(wifi_config));
+    TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_wifi_connect_to_sta(&wifi_config));
 
     mqtt_sensor_wifi_disconnect_to_sta();
 
@@ -109,7 +109,7 @@ TEST_CASE("mqtt_sensor_wifi_connect_to_sta wrong ssid", "[mqtt_sensor_wifi]")
     }
     TEST_ASSERT_EQUAL(ESP_OK, ret);
 
-    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_wifi_connect_to_sta(wifi_config));
+    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_wifi_connect_to_sta(&wifi_config));
 
     mqtt_sensor_wifi_disconnect_to_sta();
 
@@ -133,7 +133,7 @@ TEST_CASE("mqtt_sensor_wifi_connect_to_sta wrong password", "[mqtt_sensor_wifi]"
     }
     TEST_ASSERT_EQUAL(ESP_OK, ret);
 
-    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_wifi_connect_to_sta(wifi_config));
+    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_wifi_connect_to_sta(&wifi_config));
 
     mqtt_sensor_wifi_disconnect_to_sta();
 
@@ -157,7 +157,7 @@ TEST_CASE("mqtt_sensor_wifi_connect_to_sta wrong channel", "[mqtt_sensor_wifi]")
     }
     TEST_ASSERT_EQUAL(ESP_OK, ret);
 
-    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_wifi_connect_to_sta(wifi_config));
+    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_wifi_connect_to_sta(&wifi_config));
 
     mqtt_sensor_wifi_disconnect_to_sta();
 

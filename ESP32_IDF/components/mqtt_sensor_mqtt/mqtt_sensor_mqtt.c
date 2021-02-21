@@ -10,13 +10,15 @@
 
 #include <mqtt_sensor_mqtt.h>
 
-static char *mqtt_pub_topic_result_to_subscribe;
-static char *mqtt_pub_topic_message_to_subscribe;
+static char *mqtt_pub_topic_to_subscribe;
 
 static const char *TAG = "mqtt_sensor_mqtt";
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_mqtt_event_group;
+
+/* Configured mqtt config*/
+static esp_mqtt_client_config_t *configured_mqtt_cfg;
 
 /* The event group allows multiple bits for each event, but we only care about two events:
  * - we are connected to the AP with an IP
@@ -38,9 +40,7 @@ static esp_err_t mqtt_sensor_mqtt_event_handler_cb(esp_mqtt_event_handle_t event
     {
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-        msg_id = esp_mqtt_client_subscribe(client, mqtt_pub_topic_result_to_subscribe, 0);
-        ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
-        msg_id = esp_mqtt_client_subscribe(client, mqtt_pub_topic_message_to_subscribe, 0);
+        msg_id = esp_mqtt_client_subscribe(client, mqtt_pub_topic_to_subscribe, 0);
         ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
         break;
     case MQTT_EVENT_DISCONNECTED:
@@ -56,10 +56,10 @@ static esp_err_t mqtt_sensor_mqtt_event_handler_cb(esp_mqtt_event_handle_t event
         break;
     case MQTT_EVENT_PUBLISHED:
         ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+        xEventGroupSetBits(s_mqtt_event_group, MQTT_PUBLISHED_BIT);
         break;
     case MQTT_EVENT_DATA:
         ESP_LOGI(TAG, "MQTT_EVENT_DATA");
-        xEventGroupSetBits(s_mqtt_event_group, MQTT_PUBLISHED_BIT);
         break;
     case MQTT_EVENT_ERROR:
         ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
@@ -91,18 +91,50 @@ static void mqtt_sensor_mqtt_event_handler(void *handler_args, esp_event_base_t 
     mqtt_sensor_mqtt_event_handler_cb(event_data);
 }
 
-esp_err_t mqtt_sensor_mqtt_connect(esp_mqtt_client_config_t mqtt_cfg, char *mqtt_pub_topic_result, char *mqtt_pub_topic_message)
+static esp_err_t mqtt_sensor_mqtt_publish(const char *payload)
 {
     esp_err_t status = ESP_FAIL;
 
-    mqtt_pub_topic_result_to_subscribe = mqtt_pub_topic_result;
-    mqtt_pub_topic_message_to_subscribe = mqtt_pub_topic_message;
+    if (payload == NULL)
+    {
+        return status;
+    }
+
+    xEventGroupClearBits(s_mqtt_event_group, MQTT_PUBLISHED_BIT | MQTT_ERROR_BIT);
+    if (esp_mqtt_client_publish(client, mqtt_pub_topic_to_subscribe, payload, 0, 1, 0) != -1)
+    {
+        ESP_LOGI(TAG, "sent publish successful");
+
+        /* Waiting until either the message was published (MQTT_PUBLISHED_BIT) or connection failed (MQTT_ERROR_BIT). The bits are set by event_handler() (see above) */
+        EventBits_t bits = xEventGroupWaitBits(s_mqtt_event_group,
+                                               MQTT_PUBLISHED_BIT | MQTT_ERROR_BIT,
+                                               pdFALSE,
+                                               pdFALSE,
+                                               150000);
+
+        /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually happened. */
+        if (bits & MQTT_PUBLISHED_BIT)
+        {
+            status = ESP_OK;
+        }
+    }
+
+    return status;
+}
+
+esp_err_t mqtt_sensor_mqtt_connect(esp_mqtt_client_config_t *mqtt_cfg, char *mqtt_pub_topic)
+{
+    esp_err_t status = ESP_FAIL;
+
+    mqtt_pub_topic_to_subscribe = mqtt_pub_topic;
+    configured_mqtt_cfg = mqtt_cfg;
 
     s_mqtt_event_group = xEventGroupCreate();
 
-    client = esp_mqtt_client_init(&mqtt_cfg);
+    client = esp_mqtt_client_init(configured_mqtt_cfg);
     if (esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_sensor_mqtt_event_handler, client) == ESP_OK)
     {
+        xEventGroupClearBits(s_mqtt_event_group, MQTT_CONNECTED_BIT | MQTT_ERROR_BIT);
         if (esp_mqtt_client_start(client) == ESP_OK)
         {
             /* Waiting until either the connection is established (MQTT_CONNECTED_BIT) or connection failed (MQTT_ERROR_BIT). The bits are set by event_handler() (see above) */
@@ -149,23 +181,7 @@ esp_err_t mqtt_sensor_mqtt_publish_result(struct sensor_data *results)
     cJSON_AddNumberToObject(root, "gasResistance", results->gasResistance);
     const char *payload = cJSON_Print(root);
 
-    if (esp_mqtt_client_publish(client, mqtt_pub_topic_result_to_subscribe, payload, 0, 0, 0) != -1)
-    {
-        ESP_LOGI(TAG, "sent publish successful");
-
-        /* Waiting until either the message was published (MQTT_PUBLISHED_BIT) or connection failed (MQTT_ERROR_BIT). The bits are set by event_handler() (see above) */
-        EventBits_t bits = xEventGroupWaitBits(s_mqtt_event_group,
-                                               MQTT_PUBLISHED_BIT | MQTT_ERROR_BIT,
-                                               pdFALSE,
-                                               pdFALSE,
-                                               150000);
-
-        /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually happened. */
-        if (bits & MQTT_PUBLISHED_BIT)
-        {
-            status = ESP_OK;
-        }
-    }
+    status = mqtt_sensor_mqtt_publish(payload);
 
     return status;
 }
@@ -187,23 +203,7 @@ esp_err_t mqtt_sensor_mqtt_publish_message(char *message)
     cJSON_AddNumberToObject(root, "timestamp", now);
     const char *payload = cJSON_Print(root);
 
-    if (esp_mqtt_client_publish(client, mqtt_pub_topic_message_to_subscribe, payload, 0, 0, 0) != -1)
-    {
-        ESP_LOGI(TAG, "sent publish successful");
-
-        /* Waiting until either the message was published (MQTT_PUBLISHED_BIT) or connection failed (MQTT_ERROR_BIT). The bits are set by event_handler() (see above) */
-        EventBits_t bits = xEventGroupWaitBits(s_mqtt_event_group,
-                                               MQTT_PUBLISHED_BIT | MQTT_ERROR_BIT,
-                                               pdFALSE,
-                                               pdFALSE,
-                                               150000);
-
-        /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually happened. */
-        if (bits & MQTT_PUBLISHED_BIT)
-        {
-            status = ESP_OK;
-        }
-    }
+    status = mqtt_sensor_mqtt_publish(payload);
 
     return status;
 }

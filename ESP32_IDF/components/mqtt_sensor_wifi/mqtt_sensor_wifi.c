@@ -15,6 +15,7 @@
         esp_err_t __err_rc = (x);            \
         if (__err_rc != ESP_OK)              \
         {                                    \
+            ESP_LOGE(TAG, "unexpected error occurred"); \
             mqtt_sensor_wifi_disconnect_to_sta(); \
             return ESP_FAIL;                 \
         }                                    \
@@ -25,6 +26,9 @@ static EventGroupHandle_t s_wifi_event_group;
 
 /* Created netif handler when connecting*/
 static esp_netif_t *handler = NULL;
+
+/* Configured wifi config*/
+static mqtt_sensor_wifi_config_t *configured_mqtt_sensor_wifi_config;
 
 /* The event group allows multiple bits for each event, but we only care about two events:
  * - we are connected to the AP with an IP
@@ -68,13 +72,15 @@ static void event_handler(void *arg, esp_event_base_t event_base,
     }
 }
 
-esp_err_t mqtt_sensor_wifi_connect_to_sta(mqtt_sensor_wifi_config_t mqtt_sensor_wifi_config)
+esp_err_t mqtt_sensor_wifi_connect_to_sta(mqtt_sensor_wifi_config_t *mqtt_sensor_wifi_config)
 {
     uint16_t number_of_scanned_ap = 1;
     esp_err_t status = ESP_FAIL;
     wifi_ap_record_t ap_info[number_of_scanned_ap];
     uint16_t ap_count = 0;
     nvs_stats_t nvs_stats;
+
+    configured_mqtt_sensor_wifi_config = mqtt_sensor_wifi_config;
 
     if (nvs_get_stats(NULL, &nvs_stats) == ESP_ERR_NVS_NOT_INITIALIZED)
     {
@@ -94,8 +100,8 @@ esp_err_t mqtt_sensor_wifi_connect_to_sta(mqtt_sensor_wifi_config_t mqtt_sensor_
     memset(ap_info, 0, sizeof(ap_info));
 
     wifi_scan_config_t scan_config = {0};
-    scan_config.ssid = mqtt_sensor_wifi_config.ssid;
-    scan_config.channel = mqtt_sensor_wifi_config.channel;
+    scan_config.ssid = configured_mqtt_sensor_wifi_config->ssid;
+    scan_config.channel = configured_mqtt_sensor_wifi_config->channel;
     scan_config.scan_time.active.max = 10;
     scan_config.scan_time.passive = 10;
 
@@ -105,13 +111,13 @@ esp_err_t mqtt_sensor_wifi_connect_to_sta(mqtt_sensor_wifi_config_t mqtt_sensor_
             .password = {0},
             .scan_method = WIFI_FAST_SCAN,
             .sort_method = WIFI_CONNECT_AP_BY_SIGNAL,
-            .channel = mqtt_sensor_wifi_config.channel,
+            .channel = configured_mqtt_sensor_wifi_config->channel,
             .threshold.authmode = WIFI_AUTH_WPA2_PSK,
         },
     };
 
-    memcpy(&wifi_config.sta.ssid, &mqtt_sensor_wifi_config.ssid, sizeof(mqtt_sensor_wifi_config.ssid));
-    memcpy(&wifi_config.sta.password, &mqtt_sensor_wifi_config.password, sizeof(mqtt_sensor_wifi_config.password));
+    memcpy(&wifi_config.sta.ssid, &configured_mqtt_sensor_wifi_config->ssid, sizeof(configured_mqtt_sensor_wifi_config->ssid));
+    memcpy(&wifi_config.sta.password, &configured_mqtt_sensor_wifi_config->password, sizeof(configured_mqtt_sensor_wifi_config->password));
 
     ESP_RETURN_ERROR(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_RETURN_ERROR(esp_wifi_start());
@@ -144,13 +150,13 @@ esp_err_t mqtt_sensor_wifi_connect_to_sta(mqtt_sensor_wifi_config_t mqtt_sensor_
     if (bits & WIFI_CONNECTED_BIT)
     {
         ESP_LOGI(TAG, "connected to ap SSID:%s",
-                 mqtt_sensor_wifi_config.ssid);
+                 configured_mqtt_sensor_wifi_config->ssid);
         status = ESP_OK;
     }
     else if (bits & WIFI_FAIL_BIT)
     {
         ESP_LOGI(TAG, "Failed to connect to SSID:%s",
-                 mqtt_sensor_wifi_config.ssid);
+                 configured_mqtt_sensor_wifi_config->ssid);
     }
     else
     {
