@@ -9,6 +9,10 @@
 #include <driver/rtc_io.h>
 #include <nvs_flash.h>
 
+#include "driver/gpio.h"
+#include "driver/adc.h"
+
+
 #include <mqtt_sensor_wifi.h>
 #include <mqtt_sensor_data.h>
 #include <mqtt_sensor_bme680.h>
@@ -41,6 +45,30 @@ const char *MQTT_PASS = "pasword"; // leave blank if no credentials used
 
 static const char *TAG = "main";
 
+#define NO_OF_SAMPLES   64          //Multisampling
+static const adc_channel_t channel = ADC_CHANNEL_6;     //GPIO34 if ADC1
+static const adc_atten_t atten = ADC_ATTEN_DB_0;
+
+static float readBatteryLevel(){
+
+    float batteryLevel = 0;
+    uint32_t adc_reading = 0;
+
+    adc1_config_width(ADC_WIDTH_BIT_12);
+    adc1_config_channel_atten(channel, atten);
+
+    //Multisampling
+    for (int i = 0; i < NO_OF_SAMPLES; i++) {
+        adc_reading += adc1_get_raw((adc1_channel_t)channel);
+    }
+    adc_reading /= NO_OF_SAMPLES;
+    batteryLevel = adc_reading * 100 / 4095;
+
+    ESP_LOGI(TAG, "Battery level = %f Percent", batteryLevel);
+
+    return batteryLevel;
+}
+
 void app_main(void)
 {
     mqtt_sensor_wifi_config_t wifi_config = {
@@ -59,11 +87,14 @@ void app_main(void)
     struct timeval enter_app_main_time;
     struct timeval leave_app_main_time;
     int app_main_duration_ms;
-    esp_log_level_set("*", ESP_LOG_WARN);
+    esp_log_level_set("*", ESP_LOG_INFO);
     gettimeofday(&enter_app_main_time, NULL);
     const int wakeup_time_sec = WAKEUP_TIME_SEC;
     ESP_LOGI(TAG, "Enabling timer wakeup, %d s", wakeup_time_sec);
     esp_sleep_enable_timer_wakeup(wakeup_time_sec * 1000000);
+
+    // Get the batteryLevel
+    float batteryLevel = readBatteryLevel();
 
     // Initialize NVS
     esp_err_t ret = nvs_flash_init();
@@ -105,7 +136,7 @@ void app_main(void)
                     for (uint32_t i = 0; i < current_buffer_index; i++)
                     {
                         mqtt_sensor_data_get_last(&results);
-                        if (mqtt_sensor_mqtt_publish_result(&results) == ESP_OK)
+                        if (mqtt_sensor_mqtt_publish_result(&results, batteryLevel) == ESP_OK)
                         {
                             mqtt_sensor_data_drop();
                         }

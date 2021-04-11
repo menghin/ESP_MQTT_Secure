@@ -209,7 +209,7 @@ TEST_CASE("mqtt_sensor_mqtt_publish_result (100 times)", "[mqtt_sensor_mqtt]")
 
     for (uint32_t i = 0; i < 100; i++)
     {
-        TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_publish_result(&results));
+        TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_publish_result(&results, 0));
     }
 
     TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_disconnect());
@@ -252,7 +252,7 @@ TEST_CASE("mqtt_sensor_mqtt_publish_result invalid input data", "[mqtt_sensor_mq
     for (int i = 0; i < 50; i++)
     {
         esp_fill_random((void *)&results, sizeof(struct sensor_data));
-        mqtt_sensor_mqtt_publish_result(&results);
+        mqtt_sensor_mqtt_publish_result(&results, 0);
     }
 
     TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_disconnect());
@@ -290,7 +290,7 @@ TEST_CASE("mqtt_sensor_mqtt_publish_result input data pointer is NULL", "[mqtt_s
 
     TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_connect(&mqtt_cfg, mqtt_pub_topic));
 
-    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_mqtt_publish_result(NULL));
+    TEST_ASSERT_EQUAL(ESP_FAIL, mqtt_sensor_mqtt_publish_result(NULL, 0));
 
     TEST_ASSERT_EQUAL(ESP_OK, mqtt_sensor_mqtt_disconnect());
 
@@ -341,7 +341,7 @@ TEST_CASE("mqtt_sensor_mqtt_publish_message (100 times)", "[mqtt_sensor_mqtt]")
     TEST_ASSERT_EQUAL(ESP_OK, nvs_flash_deinit());
 }
 
-TEST_CASE("mqtt_sensor_mqtt_publish_result input data pointer is NULL", "[mqtt_sensor_mqtt]")
+TEST_CASE("mqtt_sensor_mqtt_publish_message input data pointer is NULL", "[mqtt_sensor_mqtt]")
 {
     mqtt_sensor_wifi_config_t wifi_config = {
         .ssid = ESP_WIFI_SSID,

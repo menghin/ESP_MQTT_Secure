@@ -21,7 +21,7 @@ extern "C"
 
     esp_err_t mqtt_sensor_mqtt_connect(esp_mqtt_client_config_t *mqtt_cfg, char *mqtt_pub_topic);
     esp_err_t mqtt_sensor_mqtt_disconnect(void);
-    esp_err_t mqtt_sensor_mqtt_publish_result(struct sensor_data *results);
+    esp_err_t mqtt_sensor_mqtt_publish_result(struct sensor_data *results, float batteryLevel);
     esp_err_t mqtt_sensor_mqtt_publish_message(char *message);
 
 #ifdef __cplusplus

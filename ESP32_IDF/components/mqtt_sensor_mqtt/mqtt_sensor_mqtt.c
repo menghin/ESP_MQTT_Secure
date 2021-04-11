@@ -164,7 +164,7 @@ esp_err_t mqtt_sensor_mqtt_disconnect(void)
     return status;
 }
 
-esp_err_t mqtt_sensor_mqtt_publish_result(struct sensor_data *results)
+esp_err_t mqtt_sensor_mqtt_publish_result(struct sensor_data *results, float batteryLevel)
 {
     esp_err_t status = ESP_FAIL;
 
@@ -179,6 +179,7 @@ esp_err_t mqtt_sensor_mqtt_publish_result(struct sensor_data *results)
     cJSON_AddNumberToObject(root, "humidity", results->humidity);
     cJSON_AddNumberToObject(root, "pressure", results->pressure);
     cJSON_AddNumberToObject(root, "gasResistance", results->gasResistance);
+    cJSON_AddNumberToObject(root, "batteryLevel", batteryLevel);
     const char *payload = cJSON_Print(root);
 
     status = mqtt_sensor_mqtt_publish(payload);
